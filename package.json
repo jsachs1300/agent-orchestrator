@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/app/index.ts",
     "build": "tsc",
-    "start": "node dist/app/index.js"
+    "start": "node dist/app/index.js",
+    "test": "npm run build && node --test tests/**/*.test.js"
   },
   "dependencies": {
     "body-parser": "^1.20.2",
