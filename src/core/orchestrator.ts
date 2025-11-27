@@ -87,7 +87,7 @@ export async function runOrchestrationTurn(
           params: action.params
         };
 
-        const toolRes = await dispatchTool(toolReq);
+        const toolRes = await dispatchTool(toolReq, session);
         const toolContent = JSON.stringify(toolRes);
 
         const toolMsg: Message = {

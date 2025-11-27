@@ -2,7 +2,8 @@ import { ToolHandler } from "./index";
 import { ToolRequest, ToolResult } from "../core/types";
 
 export const echoTool: ToolHandler = async (
-  req: ToolRequest
+  req: ToolRequest,
+  _ctx
 ): Promise<ToolResult> => {
   return {
     callId: req.callId,

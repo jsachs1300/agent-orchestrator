@@ -1,30 +1,70 @@
 import { ToolHandler } from "../index";
 import { ToolRequest, ToolResult } from "../../core/types";
 
-/**
- * Mock repo tree — replace later with real GitHub / local FS read.
- */
-const MOCK_TREE = [
-  { path: "src/", type: "dir" },
-  { path: "src/index.ts", type: "file" },
-  { path: "src/app/", type: "dir" },
-  { path: "src/app/index.ts", type: "file" },
-  { path: "src/core/", type: "dir" },
-  { path: "src/core/orchestrator.ts", type: "file" },
-  { path: "README.md", type: "file" }
-];
-
 export const readTreeTool: ToolHandler = async (
-  req: ToolRequest
+  req: ToolRequest,
+  ctx
 ): Promise<ToolResult> => {
-  return {
-    callId: req.callId,
-    name: req.name,
-    success: true,
-    result: {
-      repo: req.params.repo || null,
-      branch: req.params.branch || "main",
-      tree: MOCK_TREE
-    }
-  };
+  const owner = req.params?.owner;
+  const repo = req.params?.repo;
+  const branch = req.params?.branch || "main";
+
+  if (!owner || !repo) {
+    return {
+      callId: req.callId,
+      name: req.name,
+      success: false,
+      error: "Both 'owner' and 'repo' parameters are required"
+    };
+  }
+
+  try {
+    const { octokit, installationId } = await ctx.github.requireInstallation();
+    const ref = await octokit.git.getRef({
+      owner,
+      repo,
+      ref: `heads/${branch}`
+    });
+
+    const treeSha = ref.data.object.sha;
+    const treeResponse = await octokit.git.getTree({
+      owner,
+      repo,
+      tree_sha: treeSha,
+      recursive: "1"
+    });
+
+  const treeItems = treeResponse.data.tree as Array<{
+    path?: string | null;
+    type?: string | null;
+  }>;
+
+  const tree = treeItems
+    .filter((item): item is { path: string; type: string } =>
+      Boolean(item.path && item.type)
+    )
+    .map((item) => ({
+      path: item.path,
+      type: item.type
+    }));
+
+    return {
+      callId: req.callId,
+      name: req.name,
+      success: true,
+      result: {
+        installationId,
+        repo: `${owner}/${repo}`,
+        branch,
+        tree
+      }
+    };
+  } catch (error) {
+    return {
+      callId: req.callId,
+      name: req.name,
+      success: false,
+      error: (error as Error).message
+    };
+  }
 };
