@@ -1,3 +1,4 @@
+import { App } from "@octokit/app";
 import { createAppAuth } from "@octokit/auth-app";
 import { Octokit } from "@octokit/rest";
 import jwt, { JwtPayload } from "jsonwebtoken";
@@ -63,6 +64,24 @@ export async function verifyAppJwt(): Promise<string> {
 
   const { token } = await auth({ type: "app" });
   return token;
+let appInstance: App | null = null;
+function getApp(): App {
+  if (!appInstance) {
+    appInstance = new App({
+      appId: getAppId(),
+      privateKey: getPrivateKey(),
+      oauth: {
+        clientId: getClientId(),
+        clientSecret: getClientSecret()
+      }
+    });
+  }
+  return appInstance;
+}
+
+export async function verifyAppJwt(): Promise<string> {
+  const app = getApp();
+  return app.getSignedJsonWebToken();
 }
 
 export async function generateInstallationToken(
