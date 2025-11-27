@@ -1,4 +1,5 @@
 import { createAppAuth } from "@octokit/auth-app";
+import type { App } from "@octokit/app";
 import { Octokit } from "@octokit/rest";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import { Session } from "./types";
