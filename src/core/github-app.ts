@@ -70,8 +70,15 @@ function getApp(): App {
 }
 
 export async function verifyAppJwt(): Promise<string> {
-  const app = getApp();
-  return app.getSignedJsonWebToken();
+  const auth = createAppAuth({
+    appId: getAppId(),
+    privateKey: getPrivateKey(),
+    clientId: getClientId(),
+    clientSecret: getClientSecret()
+  });
+
+  const { token } = await auth({ type: "app" });
+  return token;
 }
 
 export async function generateInstallationToken(
