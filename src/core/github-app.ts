@@ -25,20 +25,33 @@ function getAppId(): number {
   return appId;
 }
 
+function getClientId(): string {
+  const clientId = process.env.GITHUB_CLIENT_ID;
+  if (!clientId) {
+    throw new Error("GITHUB_CLIENT_ID is not configured");
+  }
+  return clientId;
+}
+
+function getClientSecret(): string {
+  const secret = process.env.GITHUB_CLIENT_SECRET;
+  if (!secret) {
+    throw new Error("GITHUB_CLIENT_SECRET is not configured");
+  }
+  return secret;
+}
+
 function getPrivateKey(): string {
-  const key = process.env.GITHUB_APP_PRIVATE_KEY;
+  const key = process.env.GITHUB_PRIVATE_KEY;
   if (!key) {
-    throw new Error("GITHUB_APP_PRIVATE_KEY is not configured");
+    throw new Error("GITHUB_PRIVATE_KEY is not configured");
   }
   return key.replace(/\\n/g, "\n");
 }
 
-function getStateSecret(): string {
-  const secret = process.env.GITHUB_STATE_SECRET;
-  if (!secret) {
-    throw new Error("GITHUB_STATE_SECRET is not configured");
-  }
-  return secret;
+function getAppPublicUrl(): string | undefined {
+  const url = process.env.APP_PUBLIC_URL;
+  return url && url.trim().length > 0 ? url.trim() : undefined;
 }
 
 let appInstance: App | null = null;
@@ -46,7 +59,11 @@ function getApp(): App {
   if (!appInstance) {
     appInstance = new App({
       appId: getAppId(),
-      privateKey: getPrivateKey()
+      privateKey: getPrivateKey(),
+      oauth: {
+        clientId: getClientId(),
+        clientSecret: getClientSecret()
+      }
     });
   }
   return appInstance;
@@ -62,7 +79,9 @@ export async function generateInstallationToken(
 ): Promise<{ token: string; expiresAt: string }> {
   const auth = createAppAuth({
     appId: getAppId(),
-    privateKey: getPrivateKey()
+    privateKey: getPrivateKey(),
+    clientId: getClientId(),
+    clientSecret: getClientSecret()
   });
 
   const { token, expiresAt } = await auth({
@@ -74,15 +93,20 @@ export async function generateInstallationToken(
 }
 
 export function signStateToken(sessionId: string): string {
-  const secret = getStateSecret();
-  return jwt.sign({ sessionId }, secret, { expiresIn: "10m" });
+  const secret = getClientSecret();
+  const appUrl = getAppPublicUrl();
+  return jwt.sign({ sessionId, appUrl }, secret, { expiresIn: "10m" });
 }
 
 export function verifyStateToken(token: string): { sessionId: string } {
-  const secret = getStateSecret();
+  const secret = getClientSecret();
   const decoded = jwt.verify(token, secret) as JwtPayload;
   if (!decoded || typeof decoded !== "object" || !decoded.sessionId) {
     throw new Error("Invalid state token");
+  }
+  const appUrl = getAppPublicUrl();
+  if (appUrl && decoded.appUrl && decoded.appUrl !== appUrl) {
+    throw new Error("State token was issued for a different redirect origin");
   }
   return { sessionId: decoded.sessionId as string };
 }

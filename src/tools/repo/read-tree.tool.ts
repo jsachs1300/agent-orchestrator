@@ -34,14 +34,19 @@ export const readTreeTool: ToolHandler = async (
       recursive: "1"
     });
 
-    const tree = treeResponse.data.tree
-      .filter((item): item is { path: string; type: string } =>
-        Boolean(item.path && item.type)
-      )
-      .map((item) => ({
-        path: item.path,
-        type: item.type
-      }));
+  const treeItems = treeResponse.data.tree as Array<{
+    path?: string | null;
+    type?: string | null;
+  }>;
+
+  const tree = treeItems
+    .filter((item): item is { path: string; type: string } =>
+      Boolean(item.path && item.type)
+    )
+    .map((item) => ({
+      path: item.path,
+      type: item.type
+    }));
 
     return {
       callId: req.callId,
