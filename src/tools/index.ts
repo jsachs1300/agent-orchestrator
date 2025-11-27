@@ -1,9 +1,24 @@
-import { ToolRequest, ToolResult } from "../core/types";
+import { Octokit } from "@octokit/rest";
+import { ToolRequest, ToolResult, Session } from "../core/types";
 import { echoTool } from "./echo.tool";
 import { readFileTool } from "./repo/read-file.tool";
 import { readTreeTool } from "./repo/read-tree.tool";
+import { ensureInstallationTokenForSession } from "../core/github-app";
 
-export type ToolHandler = (req: ToolRequest) => Promise<ToolResult>;
+export interface ToolExecutionContext {
+  session: Session;
+  github: {
+    requireInstallation: () => Promise<{
+      installationId: number;
+      octokit: Octokit;
+    }>;
+  };
+}
+
+export type ToolHandler = (
+  req: ToolRequest,
+  ctx: ToolExecutionContext
+) => Promise<ToolResult>;
 
 const registry: Record<string, ToolHandler> = {
   "echo.tool": echoTool,
@@ -12,7 +27,29 @@ const registry: Record<string, ToolHandler> = {
   // "git.apply_changes": gitApplyChangesTool,
 };
 
-export async function dispatchTool(req: ToolRequest): Promise<ToolResult> {
+async function buildContext(session: Session): Promise<ToolExecutionContext> {
+  return {
+    session,
+    github: {
+      requireInstallation: async () => {
+        const metadata = await ensureInstallationTokenForSession(session);
+        if (!metadata.installationToken) {
+          throw new Error("Missing installation token after refresh");
+        }
+
+        return {
+          installationId: metadata.installationId,
+          octokit: new Octokit({ auth: metadata.installationToken })
+        };
+      }
+    }
+  };
+}
+
+export async function dispatchTool(
+  req: ToolRequest,
+  session: Session
+): Promise<ToolResult> {
   const handler = registry[req.name];
   if (!handler) {
     return {
@@ -23,5 +60,15 @@ export async function dispatchTool(req: ToolRequest): Promise<ToolResult> {
     };
   }
 
-  return handler(req);
+  try {
+    const ctx = await buildContext(session);
+    return await handler(req, ctx);
+  } catch (error) {
+    return {
+      callId: req.callId,
+      name: req.name,
+      success: false,
+      error: (error as Error).message
+    };
+  }
 }

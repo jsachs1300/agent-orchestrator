@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
 import sessionsRouter from "./routes/sessions";
+import authRouter from "./routes/auth";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -15,6 +16,7 @@ app.get("/", (_req, res) => {
 });
 
 app.use("/sessions", sessionsRouter);
+app.use("/auth", authRouter);
 
 app.listen(PORT, () => {
   console.log(`agent-orchestrator listening on http://localhost:${PORT}`);
