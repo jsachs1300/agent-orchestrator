@@ -1,12 +1,14 @@
 import { ToolRequest, ToolResult } from "../core/types";
 import { echoTool } from "./echo.tool";
+import { readFileTool } from "./repo/read-file.tool";
 import { readTreeTool } from "./repo/read-tree.tool";
 
 export type ToolHandler = (req: ToolRequest) => Promise<ToolResult>;
 
 const registry: Record<string, ToolHandler> = {
   "echo.tool": echoTool,
-  "repo.read_tree": readTreeTool
+  "repo.read_tree": readTreeTool,
+  "repo.read_file": readFileTool
   // "git.apply_changes": gitApplyChangesTool,
 };
 
