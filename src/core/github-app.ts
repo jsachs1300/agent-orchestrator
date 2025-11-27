@@ -54,6 +54,21 @@ function getAppPublicUrl(): string | undefined {
   return url && url.trim().length > 0 ? url.trim() : undefined;
 }
 
+let appInstance: App | null = null;
+function getApp(): App {
+  if (!appInstance) {
+    appInstance = new App({
+      appId: getAppId(),
+      privateKey: getPrivateKey(),
+      oauth: {
+        clientId: getClientId(),
+        clientSecret: getClientSecret()
+      }
+    });
+  }
+  return appInstance;
+}
+
 export async function verifyAppJwt(): Promise<string> {
   const auth = createAppAuth({
     appId: getAppId(),
