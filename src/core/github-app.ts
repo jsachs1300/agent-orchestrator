@@ -1,3 +1,4 @@
+import { App } from "@octokit/app";
 import { createAppAuth } from "@octokit/auth-app";
 import { Octokit } from "@octokit/rest";
 import jwt, { JwtPayload } from "jsonwebtoken";
@@ -11,15 +12,6 @@ type SessionGithubMetadata = {
   installationToken?: string;
   installationTokenExpiresAt?: string;
 };
-
-function ensureSessionMetadata(session: Session): Record<string, any> {
-  if (!session.metadata) {
-    // The Session type declares metadata as a record, but guard against
-    // nullish values to avoid runtime crashes when persisting GitHub data.
-    session.metadata = {};
-  }
-  return session.metadata;
-}
 
 function getAppId(): number {
   const raw = process.env.GITHUB_APP_ID;
@@ -72,6 +64,24 @@ export async function verifyAppJwt(): Promise<string> {
 
   const { token } = await auth({ type: "app" });
   return token;
+let appInstance: App | null = null;
+function getApp(): App {
+  if (!appInstance) {
+    appInstance = new App({
+      appId: getAppId(),
+      privateKey: getPrivateKey(),
+      oauth: {
+        clientId: getClientId(),
+        clientSecret: getClientSecret()
+      }
+    });
+  }
+  return appInstance;
+}
+
+export async function verifyAppJwt(): Promise<string> {
+  const app = getApp();
+  return app.getSignedJsonWebToken();
 }
 
 export async function generateInstallationToken(
@@ -129,8 +139,7 @@ function saveGithubMetadata(
   session: Session,
   metadata: SessionGithubMetadata
 ): SessionGithubMetadata {
-  const metadataContainer = ensureSessionMetadata(session);
-  metadataContainer.githubInstallation = {
+  session.metadata.githubInstallation = {
     installationId: metadata.installationId,
     installationToken: metadata.installationToken,
     installationTokenExpiresAt: metadata.installationTokenExpiresAt
