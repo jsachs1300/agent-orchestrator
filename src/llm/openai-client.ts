@@ -5,18 +5,18 @@ const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
-export async function callLlm(
+export async function callOpenAi(
   messages: ChatCompletionMessageParam[]
 ): Promise<string> {
   const completion = await client.chat.completions.create({
-    model: "gpt-4.1", // tweak as needed
+    model: process.env.OPENAI_MODEL || "gpt-4.1",
     messages,
     response_format: { type: "json_object" }
   });
 
   const content = completion.choices[0]?.message?.content;
   if (!content) {
-    throw new Error("LLM returned no content");
+    throw new Error("OpenAI returned no content");
   }
 
   return content;

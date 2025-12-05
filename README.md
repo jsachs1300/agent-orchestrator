@@ -10,7 +10,7 @@ Multi-threaded LLM orchestrator that routes between:
 ```bash
 npm install
 cp .env.example .env
-# set OPENAI_API_KEY in .env
+# set OPENAI_API_KEY in .env (or use Vertex AI, see below)
 
 npm run dev
 ```
@@ -28,6 +28,23 @@ The server expects GitHub App credentials to generate installation tokens for re
   origins.
 
 Use `signStateToken(sessionId)` from `src/core/github-app.ts` to produce the `state` value when redirecting users to install the app. After GitHub redirects back to `/auth/github/callback`, the server links the installation ID to the session and refreshes an installation token for tool access.
+
+### LLM providers
+
+- Default: OpenAI (`OPENAI_API_KEY`, optional `OPENAI_MODEL`, default `gpt-4.1`).
+- Gemini via Vertex AI: set `LLM_PROVIDER=gemini` and configure Vertex AI credentials.
+
+#### Vertex AI (Gemini) setup
+
+1. Enable the Vertex AI API in your GCP project.
+2. Create a service account with the **Vertex AI User** role (and **Service Account Token Creator** if using short-lived credentials).
+3. Download the JSON key for that service account and point `GOOGLE_APPLICATION_CREDENTIALS` to it.
+4. Set the required environment variables:
+   - `VERTEX_PROJECT` (or `GOOGLE_CLOUD_PROJECT`): your GCP project ID.
+   - `VERTEX_LOCATION` (optional, default `us-central1`).
+   - `VERTEX_MODEL` (optional, default `gemini-1.5-pro-002`).
+   - `LLM_PROVIDER=gemini`.
+5. Run the app as usual (`npm run dev` or `npm start`); the orchestrator will route LLM calls to Gemini with JSON responses enforced via `responseMimeType`.
 
 ## Testing
 

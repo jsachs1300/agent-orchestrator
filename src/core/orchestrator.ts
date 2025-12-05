@@ -8,7 +8,7 @@ import {
 import { appendMessage } from "./session-store";
 import { buildContext } from "./context-builder";
 import { parseOrchestratorResponse } from "./parser";
-import { callLlm } from "../llm/openai-client";
+import { callLlm } from "../llm";
 import { SYSTEM_PROMPT } from "../llm/prompts/orchestrator-system";
 import { dispatchTool } from "../tools";
 
