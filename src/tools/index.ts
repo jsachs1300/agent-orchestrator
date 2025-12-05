@@ -3,6 +3,9 @@ import { ToolRequest, ToolResult, Session } from "../core/types";
 import { echoTool } from "./echo.tool";
 import { readFileTool } from "./repo/read-file.tool";
 import { readTreeTool } from "./repo/read-tree.tool";
+import { listBranchesTool } from "./repo/list-branches.tool";
+import { createBranchTool } from "./repo/create-branch.tool";
+import { writeFileTool } from "./repo/write-file.tool";
 import { ensureInstallationTokenForSession } from "../core/github-app";
 
 export interface ToolExecutionContext {
@@ -23,7 +26,10 @@ export type ToolHandler = (
 const registry: Record<string, ToolHandler> = {
   "echo.tool": echoTool,
   "repo.read_tree": readTreeTool,
-  "repo.read_file": readFileTool
+  "repo.read_file": readFileTool,
+  "repo.list_branches": listBranchesTool,
+  "repo.create_branch": createBranchTool,
+  "repo.write_file": writeFileTool
   // "git.apply_changes": gitApplyChangesTool,
 };
 
