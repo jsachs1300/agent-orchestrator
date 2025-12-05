@@ -34,6 +34,10 @@ Use `signStateToken(sessionId)` from `src/core/github-app.ts` to produce the `st
 - Default: OpenAI (`OPENAI_API_KEY`, optional `OPENAI_MODEL`, default `gpt-4.1`).
 - Gemini via Vertex AI: set `LLM_PROVIDER=gemini` and configure Vertex AI credentials.
 
+### API flow examples
+
+See `docs/api-flow.md` for example calls that show the order of operations to start a session and interact with the LLM/tools.
+
 #### Vertex AI (Gemini) setup
 
 1. Enable the Vertex AI API in your GCP project.
