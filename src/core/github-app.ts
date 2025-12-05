@@ -1,5 +1,4 @@
 import { createAppAuth } from "@octokit/auth-app";
-import { App } from "@octokit/app";
 import { Octokit } from "@octokit/rest";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import { Session } from "./types";
@@ -52,21 +51,6 @@ function getPrivateKey(): string {
 function getAppPublicUrl(): string | undefined {
   const url = process.env.APP_PUBLIC_URL;
   return url && url.trim().length > 0 ? url.trim() : undefined;
-}
-
-let appInstance: App | null = null;
-function getApp(): App {
-  if (!appInstance) {
-    appInstance = new App({
-      appId: getAppId(),
-      privateKey: getPrivateKey(),
-      oauth: {
-        clientId: getClientId(),
-        clientSecret: getClientSecret()
-      }
-    });
-  }
-  return appInstance;
 }
 
 export async function verifyAppJwt(): Promise<string> {
