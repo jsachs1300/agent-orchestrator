@@ -15,6 +15,16 @@ cp .env.example .env
 npm run dev
 ```
 
+### Redis
+
+Set the following environment variables to enable Redis connections (for caching or persistence layers that will be added later):
+
+- `REDIS_HOST` (required)
+- `REDIS_PORT` (optional, defaults to `6379`)
+- `REDIS_USERNAME` (optional)
+- `REDIS_PASSWORD` (optional)
+- `REDIS_TLS` (optional, set to `true` to enable TLS)
+
 ### GitHub App configuration
 
 The server expects GitHub App credentials to generate installation tokens for repo tools:
