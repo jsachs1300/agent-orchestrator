@@ -5,7 +5,7 @@ import {
   ToolRequest,
   ToolCallAction
 } from "./types";
-import { appendMessage } from "./session-store";
+import { appendMessage, saveSession } from "./session-store";
 import { buildContext } from "./context-builder";
 import { parseOrchestratorResponse } from "./parser";
 import { callLlm } from "../llm";
@@ -33,7 +33,7 @@ export async function runOrchestrationTurn(
     content: userText,
     timestamp: now
   };
-  appendMessage(session, "user", incomingUserMsg);
+  await appendMessage(session, "user", incomingUserMsg);
 
   const userVisibleMessages: string[] = [];
   let cycles = 0;
@@ -75,7 +75,7 @@ export async function runOrchestrationTurn(
           content,
           timestamp: new Date().toISOString()
         };
-        appendMessage(session, "user", msg);
+        await appendMessage(session, "user", msg);
       }
 
       if (action.type === "tool_call") {
@@ -102,8 +102,13 @@ export async function runOrchestrationTurn(
           timestamp: new Date().toISOString()
         };
 
-        appendMessage(session, action.target.thread, toolMsg);
+        await appendMessage(session, action.target.thread, toolMsg);
       }
+    }
+
+    if (resp.context !== undefined) {
+      session.context = resp.context;
+      await saveSession(session);
     }
 
     const wantsDone = resp.control?.done === true;

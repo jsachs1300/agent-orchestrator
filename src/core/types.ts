@@ -28,6 +28,7 @@ export interface Session {
   goal?: string;
   metadata: Record<string, any>;
   threads: Record<ThreadId, Thread>;
+  context?: any;
   createdAt: string;
   updatedAt: string;
 }
@@ -70,6 +71,7 @@ export interface OrchestratorControl {
 export interface OrchestratorResponse {
   actions: OrchestratorAction[];
   control?: OrchestratorControl;
+  context?: any;
 }
 
 /**

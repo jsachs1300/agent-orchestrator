@@ -17,12 +17,13 @@ router.post("/:id/message", async (req, res) => {
   }
 
   try {
-    const session = getOrCreateSession(sessionId);
+    const session = await getOrCreateSession(sessionId);
     const userMessages = await runOrchestrationTurn(session, text);
 
     res.json({
       sessionId,
-      messages: userMessages
+      messages: userMessages,
+      context: session.context ?? null
     });
   } catch (err) {
     console.error("Error in POST /sessions/:id/message", err);

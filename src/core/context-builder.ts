@@ -8,6 +8,7 @@ export interface OrchestratorContext {
     goal: string | null;
     metadata: Record<string, any>;
   };
+  current_context: any;
   threads: Record<
     string,
     Array<{
@@ -47,6 +48,7 @@ export function buildContext(session: Session): OrchestratorContext {
       goal: session.goal ?? null,
       metadata: session.metadata
     },
+    current_context: session.context ?? null,
     threads: summaryThreads
   };
 }

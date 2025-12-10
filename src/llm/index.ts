@@ -1,6 +1,7 @@
 import { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import { callGemini } from "./gemini-client";
 import { callOpenAi } from "./openai-client";
+import { getLangCache } from "./langcache";
 
 type Provider = "openai" | "gemini";
 
@@ -16,9 +17,25 @@ export async function callLlm(
   messages: ChatCompletionMessageParam[]
 ): Promise<string> {
   const provider = getProvider();
-  if (provider === "gemini") {
-    return callGemini(messages);
+  const cache = await getLangCache();
+  const serializedPrompt = JSON.stringify({ provider, messages });
+
+  const cached = cache ? await cache.get(serializedPrompt) : null;
+  if (cached) {
+    return cached;
   }
 
-  return callOpenAi(messages);
+  if (provider === "gemini") {
+    const result = await callGemini(messages);
+    if (cache) {
+      await cache.set(serializedPrompt, result);
+    }
+    return result;
+  }
+
+  const result = await callOpenAi(messages);
+  if (cache) {
+    await cache.set(serializedPrompt, result);
+  }
+  return result;
 }

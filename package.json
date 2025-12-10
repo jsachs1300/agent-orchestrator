@@ -19,6 +19,7 @@
     "express": "^4.19.0",
     "jsonwebtoken": "^9.0.2",
     "openai": "^4.60.0",
+    "redis": "^4.7.0",
     "uuid": "^9.0.1"
   },
   "devDependencies": {

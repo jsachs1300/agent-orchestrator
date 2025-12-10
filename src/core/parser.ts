@@ -79,5 +79,12 @@ export function parseOrchestratorResponse(raw: string): OrchestratorResponse {
         }
       : undefined;
 
-  return { actions, control };
+  const context =
+    parsed.context !== undefined
+      ? parsed.context
+      : parsed.agent_memory !== undefined
+        ? parsed.agent_memory
+        : undefined;
+
+  return { actions, control, context };
 }

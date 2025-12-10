@@ -116,23 +116,23 @@ function getGithubMetadata(session: Session): SessionGithubMetadata | null {
   };
 }
 
-function saveGithubMetadata(
+async function saveGithubMetadata(
   session: Session,
   metadata: SessionGithubMetadata
-): SessionGithubMetadata {
+): Promise<SessionGithubMetadata> {
   session.metadata.githubInstallation = {
     installationId: metadata.installationId,
     installationToken: metadata.installationToken,
     installationTokenExpiresAt: metadata.installationTokenExpiresAt
   };
-  saveSession(session);
+  await saveSession(session);
   return metadata;
 }
 
-export function setSessionInstallationId(
+export async function setSessionInstallationId(
   session: Session,
   installationId: number
-): SessionGithubMetadata {
+): Promise<SessionGithubMetadata> {
   const metadata: SessionGithubMetadata = {
     installationId,
     installationToken: undefined,

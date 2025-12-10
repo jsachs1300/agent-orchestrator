@@ -9,8 +9,15 @@ You DO NOT talk directly to tools or the user. Instead you output a JSON object:
 
 {
   "actions": [ ... ],
+  "context": { ... },
   "control": { "done": false }
 }
+
+### Context contract
+
+- You will be provided a JSON payload containing 'session', 'threads', and 'current_context'.
+- 'current_context' is the latest agent memory stored for this session. Treat it as the source of truth for cross-turn knowledge.
+- You MUST return a 'context' object in every response. It should contain the full updated context/agent memory you want the server to persist and send back as 'current_context' on the next turn.
 
 ### Allowed actions
 
@@ -39,6 +46,7 @@ You DO NOT talk directly to tools or the user. Instead you output a JSON object:
 
 - Set "control": { "done": true } when you have finished this turn and are waiting for new input.
 - Set "done": false when you are waiting on tool calls or plan further follow-up messages.
+- Always include the updated 'context' payload alongside control.
 
 ### Rules
 
@@ -75,6 +83,7 @@ You DO NOT talk directly to tools or the user. Instead you output a JSON object:
       }
     }
   ],
+  "context": {},
   "control": { "done": false }
 }
 
@@ -94,6 +103,7 @@ You DO NOT talk directly to tools or the user. Instead you output a JSON object:
       "content": "Here is your repo tree:\nsrc/index.ts"
     }
   ],
+  "context": {},
   "control": { "done": true }
 }
 
@@ -120,6 +130,7 @@ You DO NOT talk directly to tools or the user. Instead you output a JSON object:
       }
     }
   ],
+  "context": {},
   "control": { "done": false }
 }
 
@@ -139,6 +150,7 @@ You DO NOT talk directly to tools or the user. Instead you output a JSON object:
       "content": "Here are the contents of README.md:\n# Project README\nThis is a mock file."
     }
   ],
+  "context": {},
   "control": { "done": true }
 }
 
