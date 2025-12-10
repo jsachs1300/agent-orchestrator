@@ -4,6 +4,7 @@ import cors from "cors";
 import bodyParser from "body-parser";
 import sessionsRouter from "./routes/sessions";
 import authRouter from "./routes/auth";
+import { initRedisClient } from "../core/redis-client";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -17,6 +18,8 @@ app.get("/", (_req, res) => {
 
 app.use("/sessions", sessionsRouter);
 app.use("/auth", authRouter);
+
+initRedisClient();
 
 app.listen(PORT, () => {
   console.log(`agent-orchestrator listening on http://localhost:${PORT}`);
