@@ -1,16 +1,22 @@
 import { v4 as uuid } from "uuid";
 import {
+  DebugActionRecord,
   Message,
   Session,
   ToolRequest,
   ToolCallAction
 } from "./types";
-import { appendMessage, setSessionContext } from "./session-store";
+import {
+  appendDebugExchange,
+  appendMessage,
+  setSessionContext
+} from "./session-store";
 import { buildContext } from "./context-builder";
 import { parseOrchestratorResponse } from "./parser";
 import { callLlm } from "../llm";
 import { SYSTEM_PROMPT } from "../llm/prompts/orchestrator-system";
 import { dispatchTool } from "../tools";
+import { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 
 const MAX_CYCLES_PER_TURN = 4;
 
@@ -45,7 +51,7 @@ export async function runOrchestrationTurn(
     const contextObj = buildContext(session);
     const contextJson = JSON.stringify(contextObj, null, 2);
 
-    const llmMessages = [
+    const llmMessages: ChatCompletionMessageParam[] = [
       {
         role: "system" as const,
         content: SYSTEM_PROMPT
@@ -59,6 +65,9 @@ export async function runOrchestrationTurn(
     const raw = await callLlm(llmMessages);
     const resp = parseOrchestratorResponse(raw);
 
+    const actionRecords: DebugActionRecord[] = [];
+    const cycleTimestamp = new Date().toISOString();
+
     if (resp.context) {
       await setSessionContext(session, resp.context);
     }
@@ -69,6 +78,11 @@ export async function runOrchestrationTurn(
       if (action.type === "send_message") {
         const content = action.content;
         userVisibleMessages.push(content);
+
+        actionRecords.push({
+          type: "send_message",
+          content
+        });
 
         const msg: Message = {
           id: uuid(),
@@ -85,6 +99,13 @@ export async function runOrchestrationTurn(
       if (action.type === "tool_call") {
         toolCalls.push(action);
 
+        const toolRecord: DebugActionRecord = {
+          type: "tool_call",
+          tool: action.target.tool,
+          params: action.params
+        };
+        actionRecords.push(toolRecord);
+
         const toolReq: ToolRequest = {
           callId: action.target.call_id,
           name: action.target.tool,
@@ -93,6 +114,8 @@ export async function runOrchestrationTurn(
 
         const toolRes = await dispatchTool(toolReq, session);
         const toolContent = JSON.stringify(toolRes);
+
+        toolRecord.result = toolRes;
 
         const toolMsg: Message = {
           id: uuid(),
@@ -114,6 +137,18 @@ export async function runOrchestrationTurn(
     if (wantsDone || toolCalls.length === 0) {
       done = true;
     }
+
+    const debugExchange = {
+      id: uuid(),
+      cycle: cycles,
+      timestamp: cycleTimestamp,
+      llmRequest: llmMessages,
+      llmResponseRaw: raw,
+      parsedResponse: resp,
+      actions: actionRecords
+    };
+
+    await appendDebugExchange(session, debugExchange);
   }
 
   return userVisibleMessages;

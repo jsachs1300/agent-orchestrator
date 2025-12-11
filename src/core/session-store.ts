@@ -5,7 +5,8 @@ import {
   ThreadKind,
   Message,
   SessionToolConfig,
-  SessionContext
+  SessionContext,
+  DebugExchange
 } from "./types";
 import { initRedisClient } from "./redis-client";
 
@@ -19,6 +20,7 @@ type PersistableSessionFields = {
   context?: SessionContext;
   tools?: Record<string, SessionToolConfig>;
   threads?: Record<string, Thread>;
+  debugLog?: DebugExchange[];
   createdAt?: string;
   updatedAt?: string;
 };
@@ -68,6 +70,7 @@ function reviveSession(raw: PersistableSessionFields): Session {
     context: raw.context ?? {},
     tools: raw.tools ?? {},
     threads: raw.threads ?? {},
+    debugLog: raw.debugLog ?? [],
     createdAt: raw.createdAt ?? now,
     updatedAt: raw.updatedAt ?? now
   };
@@ -90,6 +93,7 @@ export async function createSession(
     context: options.context ?? {},
     tools: {},
     threads: {},
+    debugLog: [],
     createdAt: now,
     updatedAt: now
   };
@@ -130,6 +134,7 @@ async function persistSession(session: Session): Promise<void> {
     context: session.context,
     tools: session.tools,
     threads: session.threads,
+    debugLog: session.debugLog,
     createdAt: session.createdAt,
     updatedAt: session.updatedAt
   };
@@ -172,6 +177,15 @@ export async function appendMessage(
   }
 
   thread.messages.push(msg);
+  session.updatedAt = new Date().toISOString();
+  await saveSession(session);
+}
+
+export async function appendDebugExchange(
+  session: Session,
+  exchange: DebugExchange
+): Promise<void> {
+  session.debugLog.push(exchange);
   session.updatedAt = new Date().toISOString();
   await saveSession(session);
 }
