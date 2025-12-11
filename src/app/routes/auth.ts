@@ -30,8 +30,8 @@ router.get("/github/callback", async (req, res) => {
       });
     }
 
-    const session = getOrCreateSession(sessionId);
-    setSessionInstallationId(session, installationId);
+    const session = await getOrCreateSession(sessionId);
+    await setSessionInstallationId(session, installationId);
     const updated = await ensureInstallationTokenForSession(session);
 
     return res.json({

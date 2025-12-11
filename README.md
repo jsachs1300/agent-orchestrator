@@ -48,6 +48,30 @@ Use `signStateToken(sessionId)` from `src/core/github-app.ts` to produce the `st
 
 See `docs/api-flow.md` for example calls that show the order of operations to start a session and interact with the LLM/tools.
 
+### Sessions
+
+Each user request belongs to a session so that context, tool state, and credentials remain isolated per user. Sessions are
+persisted to Redis when `REDIS_HOST` is configured (fallback is in-memory only).
+
+Create a session with optional goal, context, and per-tool configuration (credentials, repo targets, etc.):
+
+```bash
+curl -X POST http://localhost:3000/sessions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "demo-session",
+    "goal": "Triage issues in my repo",
+    "context": {"user": "sophie"},
+    "tools": [
+      {"name": "repo.read_file", "config": {"owner": "octo", "repo": "demo"}},
+      {"name": "repo.write_file", "config": {"owner": "octo", "repo": "demo"}}
+    ]
+  }'
+```
+
+Fetch or update a session (e.g., to rotate credentials for a tool) with `GET /sessions/:id` and `PUT /sessions/:id`. Send
+messages to `/sessions/:id/message` to drive the orchestrator for that session.
+
 #### Vertex AI (Gemini) setup
 
 1. Enable the Vertex AI API in your GCP project.
