@@ -6,6 +6,9 @@ import { readTreeTool } from "./repo/read-tree.tool";
 import { listBranchesTool } from "./repo/list-branches.tool";
 import { createBranchTool } from "./repo/create-branch.tool";
 import { writeFileTool } from "./repo/write-file.tool";
+import { searchRepoTool } from "./repo/search.tool";
+import { findDefinitionTool } from "./symbol/find-definition.tool";
+import { findReferencesTool } from "./symbol/find-references.tool";
 import { ensureInstallationTokenForSession } from "../core/github-app";
 
 export interface ToolExecutionContext {
@@ -29,7 +32,10 @@ const registry: Record<string, ToolHandler> = {
   "repo.read_file": readFileTool,
   "repo.list_branches": listBranchesTool,
   "repo.create_branch": createBranchTool,
-  "repo.write_file": writeFileTool
+  "repo.write_file": writeFileTool,
+  "repo.search": searchRepoTool,
+  "symbol.find_definition": findDefinitionTool,
+  "symbol.find_references": findReferencesTool
   // "git.apply_changes": gitApplyChangesTool,
 };
 
