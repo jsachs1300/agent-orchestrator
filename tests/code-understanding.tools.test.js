@@ -123,15 +123,15 @@ test("symbol.find_definition locates probable declarations", async () => {
     {
       callId: "def-1",
       name: "symbol.find_definition",
-      params: { owner: OWNER, repo: REPO, symbol: "greet", maxResults: 5 }
+      params: { owner: OWNER, repo: REPO, symbolName: "greet", maxResults: 5 }
     },
     makeCtx(octokit)
   );
 
   assert.equal(res.success, true);
-  assert.equal(res.result.results.length, 2);
-  assert.equal(res.result.results[0].path, "src/greetings.ts");
-  assert.equal(res.result.truncated, false);
+  assert.equal(res.result.definition.path, "src/greetings.ts");
+  assert.equal(res.result.definition.line, 1);
+  assert.equal(res.result.approximate, true);
 });
 
 test("symbol.find_references returns occurrences with context", async () => {
@@ -161,14 +161,51 @@ test("symbol.find_references returns occurrences with context", async () => {
     {
       callId: "ref-1",
       name: "symbol.find_references",
-      params: { owner: OWNER, repo: REPO, symbol: "greet" }
+      params: { owner: OWNER, repo: REPO, symbolName: "greet" }
     },
     makeCtx(octokit)
   );
 
   assert.equal(res.success, true);
-  assert.ok(res.result.results.length >= 3, "should find multiple references");
+  assert.ok(res.result.references.length >= 3, "should find multiple references");
   assert.equal(res.result.truncated, false);
-  assert.equal(res.result.results[0].path, "src/refs.ts");
+  assert.equal(res.result.references[0].path, "src/refs.ts");
+  assert.equal(res.result.approximate, true);
+});
+
+test("repo.search returns multiple matches", async () => {
+  const blobs = {
+    alpha: Buffer.from("hello world\nsecond hello", "utf8").toString("base64"),
+    beta: Buffer.from("hello again", "utf8").toString("base64")
+  };
+
+  const octokit = {
+    git: {
+      getRef: async () => ({ data: { object: { sha: "root" } } }),
+      getTree: async () => ({
+        data: {
+          tree: [
+            { path: "src/a.ts", type: "blob", sha: "alpha", size: 20 },
+            { path: "src/b.ts", type: "blob", sha: "beta", size: 20 }
+          ]
+        }
+      }),
+      getBlob: async ({ file_sha }) => ({
+        data: { content: blobs[file_sha], encoding: "base64" }
+      })
+    }
+  };
+
+  const res = await searchRepoTool(
+    {
+      callId: "search-2",
+      name: "repo.search",
+      params: { owner: OWNER, repo: REPO, query: "hello" }
+    },
+    makeCtx(octokit)
+  );
+
+  assert.equal(res.success, true);
+  assert.equal(res.result.results.length, 3);
 });
 

@@ -61,6 +61,10 @@ async function loadSession(id: string): Promise<Session | null> {
   return null;
 }
 
+export async function findSession(id: string): Promise<Session | null> {
+  return loadSession(id);
+}
+
 function reviveSession(raw: PersistableSessionFields): Session {
   const now = new Date().toISOString();
   const revived: Session = {
