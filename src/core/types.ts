@@ -23,10 +23,21 @@ export interface Thread {
   messages: Message[];
 }
 
+export interface SessionToolConfig {
+  name: string;
+  enabled: boolean;
+  config: Record<string, any>;
+  lastUsedAt?: string;
+}
+
+export type SessionContext = Record<string, any>;
+
 export interface Session {
   id: string;
   goal?: string;
   metadata: Record<string, any>;
+  context: SessionContext;
+  tools: Record<string, SessionToolConfig>;
   threads: Record<ThreadId, Thread>;
   createdAt: string;
   updatedAt: string;

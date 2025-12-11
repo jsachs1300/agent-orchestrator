@@ -7,6 +7,13 @@ export interface OrchestratorContext {
     id: string;
     goal: string | null;
     metadata: Record<string, any>;
+    context: Record<string, any>;
+    tools: Array<{
+      name: string;
+      enabled: boolean;
+      config: Record<string, any>;
+      lastUsedAt: string | null;
+    }>;
   };
   threads: Record<
     string,
@@ -45,7 +52,14 @@ export function buildContext(session: Session): OrchestratorContext {
     session: {
       id: session.id,
       goal: session.goal ?? null,
-      metadata: session.metadata
+      metadata: session.metadata,
+      context: session.context,
+      tools: Object.values(session.tools).map((tool) => ({
+        name: tool.name,
+        enabled: tool.enabled,
+        config: tool.config,
+        lastUsedAt: tool.lastUsedAt ?? null
+      }))
     },
     threads: summaryThreads
   };

@@ -33,7 +33,7 @@ export async function runOrchestrationTurn(
     content: userText,
     timestamp: now
   };
-  appendMessage(session, "user", incomingUserMsg);
+  await appendMessage(session, "user", incomingUserMsg);
 
   const userVisibleMessages: string[] = [];
   let cycles = 0;
@@ -75,7 +75,7 @@ export async function runOrchestrationTurn(
           content,
           timestamp: new Date().toISOString()
         };
-        appendMessage(session, "user", msg);
+        await appendMessage(session, "user", msg);
       }
 
       if (action.type === "tool_call") {
@@ -102,7 +102,7 @@ export async function runOrchestrationTurn(
           timestamp: new Date().toISOString()
         };
 
-        appendMessage(session, action.target.thread, toolMsg);
+        await appendMessage(session, action.target.thread, toolMsg);
       }
     }
 

@@ -1,12 +1,29 @@
 # API flow examples
 
-This service exposes a single endpoint for user interaction. A session is created implicitly on the first request and reused by sending more messages with the same `:id`.
+This service exposes endpoints to create, inspect, and message sessions. A session keeps each user's context, tool configuration (credentials, target repos, etc.), and history isolated from other sessions.
 
 Base URL assumes local dev (`http://localhost:3000`).
 
-## 1) Start a session (first user message)
+## 1) Create a session (recommended)
 
-Choose a session ID (any string) and POST the first user message:
+Create a session with any metadata, context, and per-tool configuration the user should access. Sessions are persisted to Redis when configured.
+
+```bash
+curl -X POST http://localhost:3000/sessions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "demo-session",
+    "goal": "Explore a repo",
+    "context": {"user": "sophie"},
+    "tools": [{"name": "repo.list_branches", "config": {"owner": "octo", "repo": "demo"}}]
+  }'
+```
+
+You can also skip this step and let the first message implicitly create the session.
+
+## 2) Start talking to the session
+
+Choose a session ID (any string) and POST a user message:
 
 ```bash
 curl -X POST http://localhost:3000/sessions/demo-session/message \
@@ -23,7 +40,7 @@ Example response:
 }
 ```
 
-## 2) Ask for tool-backed work (LLM may call tools internally)
+## 3) Ask for tool-backed work (LLM may call tools internally)
 
 Send another message to the same session. The orchestrator may call tools (e.g., GitHub repo tools) behind the scenes; the API response only returns the user-visible messages produced in that turn.
 
@@ -44,7 +61,7 @@ Example response (after the LLM triggers `repo.list_branches`):
 }
 ```
 
-## 3) Follow-up questions keep using the same session
+## 4) Follow-up questions keep using the same session
 
 The orchestrator maintains conversation state (system/user/tool history). Keep POSTing to `/sessions/:id/message`:
 
