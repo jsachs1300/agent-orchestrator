@@ -34,6 +34,24 @@ export interface SessionToolConfig {
 
 export type SessionContext = Record<string, any>;
 
+export type RuntimeAuthType = "none" | "bearer" | "apiKey" | "basic";
+
+export interface SessionRuntimeAuthConfig {
+  type: RuntimeAuthType;
+  bearerToken?: string;
+  apiKeyHeader?: string;
+  apiKeyValue?: string;
+  basicUser?: string;
+  basicPassword?: string;
+}
+
+export interface SessionRuntimeConfig {
+  enabled?: boolean;
+  baseUrl?: string;
+  timeoutMs?: number;
+  auth?: SessionRuntimeAuthConfig;
+}
+
 export interface Session {
   id: string;
   goal?: string;
@@ -42,6 +60,7 @@ export interface Session {
   tools: Record<string, SessionToolConfig>;
   threads: Record<ThreadId, Thread>;
   debugLog: DebugExchange[];
+  runtime?: SessionRuntimeConfig;
   createdAt: string;
   updatedAt: string;
 }

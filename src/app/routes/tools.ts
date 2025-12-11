@@ -129,4 +129,60 @@ router.post("/symbol/find-references", async (req, res) => {
   }
 });
 
+router.post("/http/request", async (req, res) => {
+  if (typeof req.body?.sessionToken !== "string" || req.body.sessionToken.trim().length === 0) {
+    return res.status(400).json({ error: "sessionToken is required" });
+  }
+
+  const sessionToken = req.body.sessionToken.trim();
+  const session = await findSession(sessionToken);
+  if (!session) {
+    return res.status(404).json({ error: "session_not_found" });
+  }
+
+  try {
+    const params = { ...req.body };
+    delete params.sessionToken;
+
+    const result = await dispatchTool({ callId: uuid(), name: "http.request", params }, session);
+
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+
+    res.json(result);
+  } catch (err) {
+    console.error("Error in POST /tools/http/request", err);
+    res.status(500).json({ error: "internal_error", message: (err as Error).message });
+  }
+});
+
+router.post("/health/check", async (req, res) => {
+  if (typeof req.body?.sessionToken !== "string" || req.body.sessionToken.trim().length === 0) {
+    return res.status(400).json({ error: "sessionToken is required" });
+  }
+
+  const sessionToken = req.body.sessionToken.trim();
+  const session = await findSession(sessionToken);
+  if (!session) {
+    return res.status(404).json({ error: "session_not_found" });
+  }
+
+  try {
+    const params = { ...req.body };
+    delete params.sessionToken;
+
+    const result = await dispatchTool({ callId: uuid(), name: "health.check", params }, session);
+
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+
+    res.json(result);
+  } catch (err) {
+    console.error("Error in POST /tools/health/check", err);
+    res.status(500).json({ error: "internal_error", message: (err as Error).message });
+  }
+});
+
 export default router;

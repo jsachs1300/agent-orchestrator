@@ -10,6 +10,8 @@ import { searchRepoTool } from "./repo/search.tool";
 import { findDefinitionTool } from "./symbol/find-definition.tool";
 import { findReferencesTool } from "./symbol/find-references.tool";
 import { ensureInstallationTokenForSession } from "../core/github-app";
+import { httpRequestTool } from "./runtime/http-request.tool";
+import { healthCheckTool } from "./runtime/health-check.tool";
 export { TOOL_SCHEMAS } from "./tool-schemas";
 
 export interface ToolExecutionContext {
@@ -36,7 +38,9 @@ const registry: Record<string, ToolHandler> = {
   "repo.write_file": writeFileTool,
   "repo.search": searchRepoTool,
   "symbol.find_definition": findDefinitionTool,
-  "symbol.find_references": findReferencesTool
+  "symbol.find_references": findReferencesTool,
+  "http.request": httpRequestTool,
+  "health.check": healthCheckTool
   // "git.apply_changes": gitApplyChangesTool,
 };
 
