@@ -44,6 +44,43 @@ Use `signStateToken(sessionId)` from `src/core/github-app.ts` to produce the `st
 - Default: OpenAI (`OPENAI_API_KEY`, optional `OPENAI_MODEL`, default `gpt-4.1`).
 - Gemini via Vertex AI: set `LLM_PROVIDER=gemini` and configure Vertex AI credentials.
 
+### LLM JSON contract
+
+Each orchestration turn calls the LLM with two messages:
+
+1. A **system prompt** that explains the JSON-only contract.
+2. A **user message** containing the serialized session context (goal, metadata, compact session context object, configured tools, and the most recent messages per thread).
+
+The LLM **must respond with a single JSON object** shaped as follows:
+
+```json
+{
+  "actions": [
+    {
+      "type": "send_message",
+      "target": { "type": "user", "thread": "user" },
+      "content": "string"
+    },
+    {
+      "type": "tool_call",
+      "target": {
+        "type": "tool",
+        "thread": "tool:repo",
+        "tool": "repo.read_file",
+        "call_id": "unique-id"
+      },
+      "params": { "path": "README.md" }
+    }
+  ],
+  "context": { "summary": "short notes to remember", "plan": "next steps" },
+  "control": { "done": true }
+}
+```
+
+- `actions` (required): ordered list of user-facing messages and tool invocations.
+- `context` (required): a compact, machine-readable object that captures everything the LLM needs to remember next turn. The server stores this per session in Redis and sends it back to the LLM on subsequent calls. Prefer terse summaries over verbose transcripts.
+- `control.done` (optional): set `true` when the turn is complete; otherwise omit or set to `false` when waiting on tools or further actions.
+
 ### API flow examples
 
 See `docs/api-flow.md` for example calls that show the order of operations to start a session and interact with the LLM/tools.
