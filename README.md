@@ -15,6 +15,66 @@ cp .env.example .env
 npm run dev
 ```
 
+## Frontend
+
+The repository includes a Vite + React playground for calling the `/plan` endpoint.
+
+1. Install frontend dependencies:
+
+   ```bash
+   cd frontend
+   npm install
+   ```
+
+2. Point the UI at your running API by setting `VITE_API_BASE_URL` (defaults to an empty string, which assumes the UI is served
+   from the same origin as the API). For example, to target a local backend:
+
+   ```bash
+   echo "VITE_API_BASE_URL=http://localhost:3000" > .env
+   ```
+
+3. Start the dev server:
+
+   ```bash
+   npm run dev
+   ```
+
+   Vite will print a local URL (e.g., `http://localhost:5173`). Open it in the browser to access the playground.
+
+4. Enter a goal/prompt, repo owner/name/default branch, and optional PAT credentials. Click **Run** to send a plan request. The
+   response (or any HTTP error) is shown in the result panel, and your repo settings are persisted in local storage for reuse.
+
+#### Deploying the playground to Google Cloud Run
+
+1. Build the static bundle and container image using the provided `frontend/Dockerfile`. Pass the backend base URL for the
+   playground at build time so Vite can inline it:
+
+   ```bash
+   docker build -f frontend/Dockerfile \
+     --build-arg VITE_API_BASE_URL=https://your-api.example.com \
+     -t gcr.io/PROJECT_ID/agent-frontend .
+   ```
+
+2. Push the image (replace `PROJECT_ID` with your GCP project):
+
+   ```bash
+   gcloud auth configure-docker
+   docker push gcr.io/PROJECT_ID/agent-frontend
+   ```
+
+3. Deploy to Cloud Run. The bundled nginx server listens on port `8080` to satisfy Cloud Run's `PORT` requirement:
+
+   ```bash
+   gcloud run deploy agent-frontend \
+     --image gcr.io/PROJECT_ID/agent-frontend \
+     --platform managed \
+     --region us-central1 \
+     --allow-unauthenticated
+   ```
+
+4. Visit the service URL printed by the deploy command to open the playground UI. The frontend will send plan requests to the
+   `VITE_API_BASE_URL` you baked into the image.
+
 ### Redis
 
 Set the following environment variables to enable Redis connections (for caching or persistence layers that will be added later):
