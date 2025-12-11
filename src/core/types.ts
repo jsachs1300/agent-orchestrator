@@ -1,3 +1,5 @@
+import { ChatCompletionMessageParam } from "openai/resources/chat/completions";
+
 // Core shared types for sessions, threads, messages, and LLM contract.
 
 export type ParticipantType = "user" | "tool" | "llm";
@@ -39,8 +41,27 @@ export interface Session {
   context: SessionContext;
   tools: Record<string, SessionToolConfig>;
   threads: Record<ThreadId, Thread>;
+  debugLog: DebugExchange[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface DebugActionRecord {
+  type: "send_message" | "tool_call";
+  content?: string;
+  tool?: string;
+  params?: any;
+  result?: any;
+}
+
+export interface DebugExchange {
+  id: string;
+  cycle: number;
+  timestamp: string;
+  llmRequest: ChatCompletionMessageParam[];
+  llmResponseRaw: string;
+  parsedResponse: OrchestratorResponse;
+  actions: DebugActionRecord[];
 }
 
 /**

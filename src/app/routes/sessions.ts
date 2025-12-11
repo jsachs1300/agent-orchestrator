@@ -56,6 +56,25 @@ router.post("/", async (req, res) => {
 });
 
 /**
+ * GET /sessions/:id/debug
+ */
+router.get("/:id/debug", async (req, res) => {
+  try {
+    const session = await getOrCreateSession(req.params.id);
+    res.json({
+      sessionId: session.id,
+      debugLog: session.debugLog
+    });
+  } catch (err) {
+    console.error("Error in GET /sessions/:id/debug", err);
+    res.status(500).json({
+      error: "internal_error",
+      message: (err as Error).message
+    });
+  }
+});
+
+/**
  * GET /sessions/:id
  */
 router.get("/:id", async (req, res) => {

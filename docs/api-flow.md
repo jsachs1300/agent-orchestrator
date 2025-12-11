@@ -82,6 +82,49 @@ Example response (after the LLM triggers `repo.read_tree` and summarizes):
 }
 ```
 
+## 5) Inspect a session's LLM exchanges (admin/debug)
+
+For debugging, the admin UI can read the raw JSON payloads exchanged with the
+LLM and the actions the orchestrator took in response. Call:
+
+```bash
+curl http://localhost:3000/sessions/demo-session/debug
+```
+
+Example response:
+
+```json
+{
+  "sessionId": "demo-session",
+  "debugLog": [
+    {
+      "id": "ce89...",
+      "cycle": 1,
+      "timestamp": "2024-08-22T18:19:00.000Z",
+      "llmRequest": [
+        {"role": "system", "content": "...system prompt..."},
+        {"role": "user", "content": "{\n  \"context\": ... }"}
+      ],
+      "llmResponseRaw": "{\"actions\": [...], \"control\": {...}}",
+      "parsedResponse": {"actions": [...], "control": {}},
+      "actions": [
+        {"type": "send_message", "content": "Hello!"},
+        {
+          "type": "tool_call",
+          "tool": "repo.list_branches",
+          "params": {"owner": "octo", "repo": "demo"},
+          "result": {"success": true, "result": ["main", "dev"]}
+        }
+      ]
+    }
+  ]
+}
+```
+
+Each entry corresponds to a single orchestration cycle and captures the prompt
+sent to the LLM, the raw JSON response, the parsed structure, and the
+orchestrator steps taken (including tool call results).
+
 ## Notes
 
 - Reuse the same `:id` to preserve context; a new `:id` starts a fresh session.
