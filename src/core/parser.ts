@@ -79,5 +79,17 @@ export function parseOrchestratorResponse(raw: string): OrchestratorResponse {
         }
       : undefined;
 
-  return { actions, control };
+  const context = (() => {
+    if (typeof parsed.context === "undefined") return undefined;
+    if (
+      parsed.context &&
+      typeof parsed.context === "object" &&
+      !Array.isArray(parsed.context)
+    ) {
+      return parsed.context as Record<string, any>;
+    }
+    throw new Error("LLM JSON 'context' must be an object if provided");
+  })();
+
+  return { actions, control, context };
 }

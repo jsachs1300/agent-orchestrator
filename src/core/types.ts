@@ -81,6 +81,11 @@ export interface OrchestratorControl {
 export interface OrchestratorResponse {
   actions: OrchestratorAction[];
   control?: OrchestratorControl;
+  /**
+   * Optional session context to persist and send back to the LLM on the next turn.
+   * The LLM should keep this as compact as possible while retaining necessary state.
+   */
+  context?: SessionContext;
 }
 
 /**

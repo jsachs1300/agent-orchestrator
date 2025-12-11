@@ -5,7 +5,7 @@ import {
   ToolRequest,
   ToolCallAction
 } from "./types";
-import { appendMessage } from "./session-store";
+import { appendMessage, setSessionContext } from "./session-store";
 import { buildContext } from "./context-builder";
 import { parseOrchestratorResponse } from "./parser";
 import { callLlm } from "../llm";
@@ -58,6 +58,10 @@ export async function runOrchestrationTurn(
 
     const raw = await callLlm(llmMessages);
     const resp = parseOrchestratorResponse(raw);
+
+    if (resp.context) {
+      await setSessionContext(session, resp.context);
+    }
 
     const toolCalls: ToolCallAction[] = [];
 

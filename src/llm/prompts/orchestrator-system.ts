@@ -9,6 +9,7 @@ You DO NOT talk directly to tools or the user. Instead you output a JSON object:
 
 {
   "actions": [ ... ],
+  "context": { ... },
   "control": { "done": false }
 }
 
@@ -31,9 +32,15 @@ You DO NOT talk directly to tools or the user. Instead you output a JSON object:
     "thread": "tool:repo",
     "tool": "repo.read_tree",
     "call_id": "unique-id"
-  },
+ },
   "params": { ... }
 }
+
+### Context
+
+- Always include a "context" object that will be stored for this session and sent back to you on the next turn.
+- Keep the context as compact as possible while retaining all information you need to continue the session (summaries, plans, progress, important IDs, etc.).
+- If there is nothing new to remember you may return an empty object.
 
 ### Control
 
