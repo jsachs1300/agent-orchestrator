@@ -2,29 +2,27 @@ import { ToolHandler } from "../index";
 import { ToolRequest, ToolResult } from "../../core/types";
 import {
   buildSnippet,
-  escapeForRegex,
   fetchRepoTree,
   getTextBlob,
-  matchesPathFilters,
   resolveRepoTarget
 } from "../shared/repo-utils";
+import { buildWordMatcher, prioritizeTree } from "./utils";
 
 const DEFAULT_MAX_RESULTS = 50;
 const MAX_FILES_SCANNED = 500;
 
 function findReferenceMatches(
   lines: string[],
-  symbol: string,
+  matcher: RegExp,
   path: string,
   remaining: number
 ): Array<{ path: string; line: number; column: number; snippet: string }> {
-  const wordPattern = new RegExp(`\\b${escapeForRegex(symbol)}\\b`, "g");
   const matches: Array<{ path: string; line: number; column: number; snippet: string }> = [];
 
   for (let i = 0; i < lines.length && matches.length < remaining; i++) {
     const line = lines[i];
     let match: RegExpExecArray | null;
-    while ((match = wordPattern.exec(line)) && matches.length < remaining) {
+    while ((match = matcher.exec(line)) && matches.length < remaining) {
       if (typeof match.index === "number") {
         matches.push({
           path,
@@ -34,6 +32,7 @@ function findReferenceMatches(
         });
       }
     }
+    matcher.lastIndex = 0;
   }
 
   return matches;
@@ -43,10 +42,10 @@ export const findReferencesTool: ToolHandler = async (
   req: ToolRequest,
   ctx
 ): Promise<ToolResult> => {
-  const symbol = req.params?.symbol;
-  const paths = Array.isArray(req.params?.paths)
-    ? (req.params.paths as Array<string>)
-    : undefined;
+  const symbol = (req.params?.symbolName ?? req.params?.symbol) as string | undefined;
+  const definitionPath =
+    typeof req.params?.definitionPath === "string" ? req.params.definitionPath : undefined;
+  const pathHint = typeof req.params?.pathHint === "string" ? req.params.pathHint : undefined;
   const maxResults = (() => {
     const raw = req.params?.maxResults;
     if (typeof raw === "number" && raw > 0) return raw;
@@ -57,12 +56,12 @@ export const findReferencesTool: ToolHandler = async (
     return DEFAULT_MAX_RESULTS;
   })();
 
-  if (!symbol || typeof symbol !== "string") {
+  if (!symbol || typeof symbol !== "string" || symbol.trim().length === 0) {
     return {
       callId: req.callId,
       name: req.name,
       success: false,
-      error: "'symbol' parameter is required"
+      error: "'symbolName' parameter is required"
     };
   }
 
@@ -77,25 +76,20 @@ export const findReferencesTool: ToolHandler = async (
   }
 
   try {
-    const { octokit, installationId } = await ctx.github.requireInstallation();
+    const { octokit } = await ctx.github.requireInstallation();
     const tree = await fetchRepoTree(octokit, target);
 
-    const filtered = tree
-      .filter((item) => matchesPathFilters(item.path, paths))
-      .filter((item) => !item.path.includes("node_modules/"))
-      .slice(0, MAX_FILES_SCANNED);
+    const candidates = prioritizeTree(tree, { pathHint, definitionPath }).slice(
+      0,
+      MAX_FILES_SCANNED
+    );
 
-    const results: Array<{
-      path: string;
-      line: number;
-      column: number;
-      snippet: string;
-    }> = [];
+    const matcher = buildWordMatcher(symbol);
+    const references: Array<{ path: string; line: number; column: number; snippet: string }> = [];
+    let truncated = false;
 
-    let hitResultLimit = false;
-
-    for (const item of filtered) {
-      if (results.length >= maxResults) break;
+    for (const item of candidates) {
+      if (references.length >= maxResults) break;
 
       const content = await getTextBlob(octokit, target, item.sha);
       if (!content) continue;
@@ -103,30 +97,25 @@ export const findReferencesTool: ToolHandler = async (
       const lines = content.split(/\r?\n/);
       const matches = findReferenceMatches(
         lines,
-        symbol,
+        matcher,
         item.path,
-        maxResults - results.length
+        maxResults - references.length
       );
+      references.push(...matches);
 
-      results.push(...matches);
-
-      if (results.length >= maxResults) {
-        hitResultLimit = true;
+      if (references.length >= maxResults) {
+        truncated = true;
         break;
       }
     }
-
-    const truncated = hitResultLimit || tree.length > filtered.length;
 
     return {
       callId: req.callId,
       name: req.name,
       success: true,
       result: {
-        installationId,
-        repo: `${target.owner}/${target.repo}`,
-        branch: target.branch,
-        results,
+        references,
+        approximate: true,
         truncated
       }
     };

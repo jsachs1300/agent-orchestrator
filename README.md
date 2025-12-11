@@ -109,6 +109,129 @@ curl -X POST http://localhost:3000/sessions \
 Fetch or update a session (e.g., to rotate credentials for a tool) with `GET /sessions/:id` and `PUT /sessions/:id`. Send
 messages to `/sessions/:id/message` to drive the orchestrator for that session.
 
+### Direct tool endpoints
+
+The service also exposes HTTP endpoints for invoking individual tools without
+going through the orchestrator. All endpoints expect a `sessionToken` that
+identifies the session (matching the `id` used when creating the session).
+
+#### POST /tools/repo/search
+
+Search for a string across repository files.
+
+```bash
+curl -X POST http://localhost:3000/tools/repo/search \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sessionToken": "demo-session",
+    "owner": "octo",
+    "repo": "demo",
+    "query": "getUser",
+    "paths": ["src/"],
+    "maxResults": 5
+  }'
+```
+
+Response (truncated example):
+
+```json
+{
+  "success": true,
+  "result": {
+    "results": [
+      {
+        "path": "src/api/user.ts",
+        "line": 12,
+        "column": 7,
+        "snippet": "export async function getUser(id: string) {\n  ...\n}"
+      }
+    ],
+    "truncated": false
+  }
+}
+```
+
+#### POST /tools/symbol/find-definition
+
+Locate a likely definition for a JavaScript/TypeScript symbol using lightweight
+heuristics. Accepts an optional `pathHint` to prioritize scanning.
+
+```bash
+curl -X POST http://localhost:3000/tools/symbol/find-definition \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sessionToken": "demo-session",
+    "owner": "octo",
+    "repo": "demo",
+    "symbolName": "getUser",
+    "pathHint": "src/api/user.ts"
+  }'
+```
+
+Example response:
+
+```json
+{
+  "success": true,
+  "result": {
+    "definition": {
+      "path": "src/api/user.ts",
+      "line": 12,
+      "column": 7,
+      "snippet": "export async function getUser(id: string) {\n  ...\n}\n"
+    },
+    "approximate": true
+  }
+}
+```
+
+#### POST /tools/symbol/find-references
+
+Find references to a symbol using text search with an `approximate` flag. Use
+`definitionPath` to scope the search to a specific file first.
+
+```bash
+curl -X POST http://localhost:3000/tools/symbol/find-references \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sessionToken": "demo-session",
+    "owner": "octo",
+    "repo": "demo",
+    "symbolName": "getUser",
+    "definitionPath": "src/api/user.ts"
+  }'
+```
+
+Example response:
+
+```json
+{
+  "success": true,
+  "result": {
+    "references": [
+      {
+        "path": "src/routes/userRoutes.ts",
+        "line": 33,
+        "column": 16,
+        "snippet": "  const user = await getUser(req.params.id);\n"
+      }
+    ],
+    "approximate": true,
+    "truncated": false
+  }
+}
+```
+
+### Tool schemas
+
+Structured metadata for tools (inputs, required fields, and example payloads)
+is available in `src/tools/tool-schemas.ts` so the LLM or UI layer can surface
+accurate argument shapes for:
+
+- `repo.search`
+- `symbol.find_definition`
+- `symbol.find_references`
+
 #### Vertex AI (Gemini) setup
 
 1. Enable the Vertex AI API in your GCP project.

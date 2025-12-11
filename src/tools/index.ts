@@ -10,6 +10,7 @@ import { searchRepoTool } from "./repo/search.tool";
 import { findDefinitionTool } from "./symbol/find-definition.tool";
 import { findReferencesTool } from "./symbol/find-references.tool";
 import { ensureInstallationTokenForSession } from "../core/github-app";
+export { TOOL_SCHEMAS } from "./tool-schemas";
 
 export interface ToolExecutionContext {
   session: Session;
@@ -39,7 +40,14 @@ const registry: Record<string, ToolHandler> = {
   // "git.apply_changes": gitApplyChangesTool,
 };
 
-async function buildContext(session: Session): Promise<ToolExecutionContext> {
+async function buildContext(
+  session: Session,
+  overrides?: Partial<ToolExecutionContext>
+): Promise<ToolExecutionContext> {
+  if (overrides?.github) {
+    return { session, github: overrides.github };
+  }
+
   return {
     session,
     github: {
@@ -60,7 +68,8 @@ async function buildContext(session: Session): Promise<ToolExecutionContext> {
 
 export async function dispatchTool(
   req: ToolRequest,
-  session: Session
+  session: Session,
+  overrides?: Partial<ToolExecutionContext>
 ): Promise<ToolResult> {
   const handler = registry[req.name];
   if (!handler) {
@@ -73,7 +82,7 @@ export async function dispatchTool(
   }
 
   try {
-    const ctx = await buildContext(session);
+    const ctx = await buildContext(session, overrides);
     return await handler(req, ctx);
   } catch (error) {
     return {
