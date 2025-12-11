@@ -6,7 +6,8 @@ import {
   Message,
   SessionToolConfig,
   SessionContext,
-  DebugExchange
+  DebugExchange,
+  SessionRuntimeConfig
 } from "./types";
 import { initRedisClient } from "./redis-client";
 
@@ -21,6 +22,7 @@ type PersistableSessionFields = {
   tools?: Record<string, SessionToolConfig>;
   threads?: Record<string, Thread>;
   debugLog?: DebugExchange[];
+  runtime?: SessionRuntimeConfig;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -31,6 +33,7 @@ export interface CreateSessionOptions {
   metadata?: Record<string, any>;
   context?: SessionContext;
   tools?: SessionToolConfig[];
+  runtime?: SessionRuntimeConfig;
 }
 
 function getRedisKey(id: string): string {
@@ -75,6 +78,7 @@ function reviveSession(raw: PersistableSessionFields): Session {
     tools: raw.tools ?? {},
     threads: raw.threads ?? {},
     debugLog: raw.debugLog ?? [],
+    runtime: raw.runtime,
     createdAt: raw.createdAt ?? now,
     updatedAt: raw.updatedAt ?? now
   };
@@ -98,6 +102,7 @@ export async function createSession(
     tools: {},
     threads: {},
     debugLog: [],
+    runtime: options.runtime,
     createdAt: now,
     updatedAt: now
   };
@@ -139,6 +144,7 @@ async function persistSession(session: Session): Promise<void> {
     tools: session.tools,
     threads: session.threads,
     debugLog: session.debugLog,
+    runtime: session.runtime,
     createdAt: session.createdAt,
     updatedAt: session.updatedAt
   };
@@ -211,6 +217,15 @@ export async function setSessionTools(
     acc[tool.name] = tool;
     return acc;
   }, {});
+  await saveSession(session);
+  return session;
+}
+
+export async function setSessionRuntime(
+  session: Session,
+  runtime?: SessionRuntimeConfig
+): Promise<Session> {
+  session.runtime = runtime;
   await saveSession(session);
   return session;
 }

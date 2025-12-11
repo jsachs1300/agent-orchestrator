@@ -85,5 +85,58 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
       symbolName: "getUser",
       definitionPath: "src/api/user.ts"
     }
+  },
+  {
+    name: "http.request",
+    description:
+      "Make an HTTP request against the runtime configured for the current session.",
+    parameters: {
+      type: "object",
+      properties: {
+        method: { type: "string", description: "HTTP method (GET, POST, etc.)." },
+        path: {
+          type: "string",
+          description: "Path to append to the runtime base URL (e.g., /api/users)."
+        },
+        queryParams: {
+          type: "object",
+          description: "Optional query string parameters as key/value pairs."
+        },
+        headers: {
+          type: "object",
+          description: "Optional headers to include with the request."
+        },
+        body: {
+          type: "object",
+          description: "Optional JSON body to send when the method supports it."
+        }
+      },
+      required: ["method", "path"]
+    },
+    example: {
+      method: "GET",
+      path: "/health"
+    }
+  },
+  {
+    name: "health.check",
+    description: "Perform a simple health probe against the configured runtime.",
+    parameters: {
+      type: "object",
+      properties: {
+        path: {
+          type: "string",
+          description: "Optional path to probe (defaults to /health)."
+        },
+        expectedStatus: {
+          type: "number",
+          description: "Expected HTTP status code for a healthy response (default 200)."
+        }
+      }
+    },
+    example: {
+      path: "/ready",
+      expectedStatus: 200
+    }
   }
 ];

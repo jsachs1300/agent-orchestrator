@@ -106,6 +106,30 @@ curl -X POST http://localhost:3000/sessions \
   }'
 ```
 
+#### Optional runtime configuration
+
+Sessions can include an optional runtime block that enables HTTP-aware tools to
+talk to an app associated with the session. Runtime settings are stored per
+session and are not shared globally.
+
+```bash
+curl -X POST http://localhost:3000/sessions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "demo-session",
+    "runtime": {
+      "enabled": true,
+      "baseUrl": "https://my-app-dev.example.com",
+      "timeoutMs": 5000,
+      "auth": { "type": "bearer", "bearerToken": "token-here" }
+    }
+  }'
+```
+
+Runtime auth supports `bearer`, `apiKey` (header/value), `basic`, or `none`. If
+runtime is omitted or disabled, HTTP and health tools will return a
+`runtime_not_configured` error.
+
 Fetch or update a session (e.g., to rotate credentials for a tool) with `GET /sessions/:id` and `PUT /sessions/:id`. Send
 messages to `/sessions/:id/message` to drive the orchestrator for that session.
 
@@ -222,6 +246,74 @@ Example response:
 }
 ```
 
+#### POST /tools/http/request
+
+Make an HTTP request to the runtime configured for the session. Fails with
+`runtime_not_configured` if the session does not include a runtime block.
+
+```bash
+curl -X POST http://localhost:3000/tools/http/request \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sessionToken": "demo-session",
+    "method": "GET",
+    "path": "/health",
+    "headers": {"x-demo": "1"}
+  }'
+```
+
+Example response:
+
+```json
+{
+  "success": true,
+  "result": {
+    "status": 200,
+    "headers": { "content-type": "application/json" },
+    "body": "{\"ok\":true}",
+    "isJson": true,
+    "json": { "ok": true },
+    "error": null,
+    "elapsedMs": 42
+  }
+}
+```
+
+#### POST /tools/health/check
+
+Runs a simple GET request (default `/health`) against the runtime base URL and
+checks the status code.
+
+```bash
+curl -X POST http://localhost:3000/tools/health/check \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sessionToken": "demo-session",
+    "path": "/ready",
+    "expectedStatus": 200
+  }'
+```
+
+Example response:
+
+```json
+{
+  "success": true,
+  "result": {
+    "ok": true,
+    "status": 200,
+    "path": "/ready",
+    "elapsedMs": 35,
+    "details": {
+      "status": 200,
+      "body": "{\"ok\":true}",
+      "isJson": true,
+      "json": {"ok": true}
+    }
+  }
+}
+```
+
 ### Tool schemas
 
 Structured metadata for tools (inputs, required fields, and example payloads)
@@ -231,6 +323,8 @@ accurate argument shapes for:
 - `repo.search`
 - `symbol.find_definition`
 - `symbol.find_references`
+- `http.request`
+- `health.check`
 
 #### Vertex AI (Gemini) setup
 

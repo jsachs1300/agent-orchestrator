@@ -4,7 +4,8 @@ import {
   getOrCreateSession,
   saveSession,
   setSessionContext,
-  setSessionTools
+  setSessionTools,
+  setSessionRuntime
 } from "../../core/session-store";
 import { runOrchestrationTurn } from "../../core/orchestrator";
 
@@ -19,6 +20,7 @@ interface SessionPayload {
     config?: Record<string, any>;
     lastUsedAt?: string;
   }>;
+  runtime?: any;
 }
 
 const router = Router();
@@ -42,7 +44,8 @@ router.post("/", async (req, res) => {
           enabled: tool.enabled ?? true,
           config: tool.config ?? {},
           lastUsedAt: tool.lastUsedAt
-        })) ?? []
+        })) ?? [],
+      runtime: body.runtime
     });
 
     res.status(201).json(session);
@@ -147,6 +150,10 @@ router.put("/:id", async (req, res) => {
           lastUsedAt: tool.lastUsedAt
         }))
       );
+    }
+
+    if (typeof updates.runtime !== "undefined") {
+      await setSessionRuntime(session, updates.runtime as any);
     }
 
     await saveSession(session);
