@@ -1,0 +1,54 @@
+steps:
+  - name: gcr.io/cloud-builders/npm
+    id: install-dependencies
+    args: ["ci"]
+    dir: frontend
+
+  - name: gcr.io/cloud-builders/npm
+    id: build-frontend
+    args: ["run", "build"]
+    dir: frontend
+
+  - name: gcr.io/cloud-builders/docker
+    id: build-image
+    args:
+      [
+        "build",
+        "-t",
+        "gcr.io/$PROJECT_ID/agent-orchestrator-frontend",
+        "-f",
+        "frontend/Dockerfile",
+        "--build-arg",
+        "VITE_API_BASE_URL=$_API_BASE_URL",
+        "."
+      ]
+
+  - name: gcr.io/cloud-builders/docker
+    id: push-image
+    args: ["push", "gcr.io/$PROJECT_ID/agent-orchestrator-frontend"]
+
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    id: deploy-cloud-run
+    entrypoint: gcloud
+    args:
+      [
+        "run",
+        "deploy",
+        "$_SERVICE_NAME",
+        "--image",
+        "gcr.io/$PROJECT_ID/agent-orchestrator-frontend",
+        "--region",
+        "$_REGION",
+        "--platform",
+        "managed",
+        "--allow-unauthenticated"
+      ]
+
+images:
+  - gcr.io/$PROJECT_ID/agent-orchestrator-frontend
+
+timeout: 1200s
+substitutions:
+  _SERVICE_NAME: agent-orchestrator-frontend
+  _REGION: us-central1
+  _API_BASE_URL: ""
