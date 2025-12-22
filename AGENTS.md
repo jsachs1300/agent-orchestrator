@@ -13,6 +13,7 @@
 - `npm run dev` runs the server in watch mode via `tsx`.
 - `npm run build` компилирует TypeScript в `dist/`.
 - `npm start` запускает собранный сервер из `dist/server.js`.
+- `npm test` runs the unit test suite with Vitest.
 - Redis должен быть доступен по `REDIS_URL` (по умолчанию `redis://localhost:6379`).
 
 ## Coding Style & Naming Conventions
@@ -23,8 +24,8 @@
 - No lint or formatter is configured; keep changes minimal and consistent.
 
 ## Testing Guidelines
-- No test framework is configured yet.
-- If adding tests, document the framework and command in this file and `package.json`.
+- Vitest is used for unit tests (`*.test.ts`).
+- Keep tests close to implementation under `src/` (e.g., `src/plan/lint.test.ts`).
 
 ## Commit & Pull Request Guidelines
 - Use short, imperative commit messages (e.g., "Add Redis state helpers").
