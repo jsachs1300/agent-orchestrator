@@ -67,7 +67,7 @@ State can be wiped at any time and rebuilt from `REQUIREMENTS.md`.
 ---
 
 ## Canonical Redis State Shape
-
+```json
     {
       "schema_version": "1.0",
       "updated_at": "ISO-8601",
@@ -118,7 +118,7 @@ State can be wiped at any time and rebuilt from `REQUIREMENTS.md`.
         }
       }
     }
-
+```
 ---
 
 ## Role Model (Enforced by API)
