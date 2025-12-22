@@ -38,7 +38,10 @@ async function detectJsonSupport(clientInstance: RedisClientType): Promise<boole
     hasJsonSupport = true;
   } catch (err: any) {
     const message = String(err?.message || err);
-    if (message.toLowerCase().includes("unknown command")) {
+    const normalized = message.toLowerCase();
+    if (normalized.includes("unknown command")) {
+      hasJsonSupport = false;
+    } else if (normalized.includes("wrongtype")) {
       hasJsonSupport = false;
     } else {
       throw err;
