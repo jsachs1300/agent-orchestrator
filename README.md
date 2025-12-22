@@ -1,216 +1,208 @@
-# Multi-Agent Product Orchestrator  
-**Authoritative Specification v1.0**
+# Minimal Agent Orchestrator (Single-Project)
+
+This orchestrator provides **centralized, shared memory** for multiple AI agents working on a single Git repository.  
+It is intentionally **minimal, disposable, and opinionated**.
+
+- **Git is the source of truth** for code, diffs, and artifacts
+- **Redis is the source of truth** for project context and coordination
+- **Agents operate directly in the repo** (terminal-based: Codex, Claude Code, etc.)
+- The orchestrator exists only to **maintain alignment and continuity across agents**
 
 ---
 
-## 1. Purpose
+## Core Purpose
 
-This project defines a **deterministic orchestration system** that coordinates multiple LLM agents (Product Manager, Architect, Coder, Tester) around a single source of truth derived from `REQUIREMENTS.md`.
+The orchestrator stores **structured project memory** so agents can work:
+- more consistently
+- with shared context
+- toward a clearly defined end goal
 
-The orchestrator enforces:
-- strict requirements compliance
-- role-based permissions
-- state transitions
-- schema validation
-- auditability
+That end goal is defined in **`REQUIREMENTS.md`**, which lives in the project repository.
 
-**LLMs propose changes.  
-The orchestrator decides what is allowed.**
-
----
-
-## 2. Core Principles
-
-1. **REQUIREMENTS.md is authoritative**
-   - No undocumented features
-   - No inferred scope
-   - No silent deviations
-
-2. **Single canonical project state**
-   - All requirements and their lifecycle live in one structured file
-   - All agents read from it
-   - No agent edits it directly
-
-3. **Role separation**
-   - PM enforces requirements
-   - Architect designs
-   - Coder implements
-   - Tester validates
-   - No role overlaps authority
-
-4. **Evidence over intent**
-   - Every status change must be justified
-   - File paths, line numbers, tests, commits
-
-5. **Deterministic workflow**
-   - Explicit states
-   - Explicit transitions
-   - No “almost done”
+The orchestrator:
+- does **not** manage code
+- does **not** store diffs
+- does **not** replace Git workflows
+- does **not** support multiple projects (by design)
 
 ---
 
-## 3. System Architecture
+## What the Orchestrator Stores
 
-### Components
+For **each requirement / feature**, the orchestrator stores only coordination artifacts:
 
-1. **Orchestrator API**
-   - Enforces rules
-   - Applies validated patches
-   - Maintains project state
+1. **Product Management**
+   - Direction for what to build
+   - Priority
+   - Approval or feedback
 
-2. **Canonical State File**
-   - `project_status.json`
-   - Stored in repo or backing store
-   - Versioned and validated
+2. **Architecture**
+   - Design spec (summary, key decisions, constraints)
+   - Pointers to repo docs if applicable
 
-3. **Agents (LLMs)**
-   - Product Manager Agent
-   - Architect Agent
-   - Coder Agent
-   - Tester Agent
+3. **Engineering**
+   - What was built
+   - Known limitations
+   - Pull request / commit references
 
-> Agents never write files directly.  
-> They submit structured change requests to the orchestrator.
+4. **QA**
+   - Test plan
+   - Test cases
+   - Test results
 
----
-
-## 4. Roles & Responsibilities
-
-### Product Manager Agent
-
-**Authority**
-- Status changes
-- Deviations
-- Final approval
-- Blocking / deferring
-
-**Modes**
-1. Full Project Review
-2. Individual Requirement Review
-
-**Can modify**
-- `status`
-- `pm_notes`
-- `deviations`
-- `approvals`
+Everything else (code, diffs, history) lives in Git.
 
 ---
 
-### Architect Agent
+## High-Level Architecture
 
-**Authority**
-- Design specification only
+- **Single Redis JSON document** (`state`)
+- **Single project**
+- **Unlimited requirements**
+- **JSON-only storage**
+- **REST API access**
 
-**Can modify**
-- `design_spec`
-
-**Cannot**
-- Change requirements
-- Change status
-- Approve completion
+State can be wiped at any time and rebuilt from `REQUIREMENTS.md`.
 
 ---
 
-### Coder Agent
+## Canonical Redis State Shape
 
-**Authority**
-- Implementation notes only
+    {
+      "schema_version": "1.0",
+      "updated_at": "ISO-8601",
+      "requirements": {
+        "REQ-1": {
+          "id": "REQ-1",
+          "title": "Short description",
+          "priority": { "tier": "p0", "rank": 1 },
+          "status": "implementation_in_progress",
 
-**Can modify**
-- `implementation`
+          "pm": {
+            "direction": "What to build and acceptance criteria",
+            "feedback": "",
+            "decision": "pending"
+          },
 
-**Cannot**
-- Change design intent
-- Change requirements
-- Mark work complete
+          "architecture": {
+            "design_spec": "Key design decisions and constraints"
+          },
 
----
+          "engineering": {
+            "implementation_notes": "What was built, what wasn't, known issues",
+            "pr": {
+              "number": 123,
+              "title": "Implement REQ-1",
+              "url": "https://github.com/...",
+              "commit": "abcd1234"
+            }
+          },
 
-### Tester Agent
-
-**Authority**
-- Test plans and results
-
-**Can modify**
-- `test`
-
-**Cannot**
-- Approve requirements
-- Change implementation scope
-
----
-
-## 5. Canonical Lifecycle States
-
-Each requirement moves through **exactly one state at a time**.
-
-### Allowed States
-
-- `not_started`
-- `blocked`
-- `planned`
-- `design_in_progress`
-- `design_ready`
-- `implementation_in_progress`
-- `implemented`
-- `test_in_progress`
-- `tested_pass`
-- `tested_fail`
-- `needs_changes`
-- `done`
-- `deferred`
-
----
-
-## 6. State Transition Rules (Enforced)
-
-| From | To | Allowed By |
-|---|---|---|
-| not_started | planned | PM |
-| planned | design_in_progress | PM |
-| design_in_progress | design_ready | PM |
-| design_ready | implementation_in_progress | PM |
-| implementation_in_progress | implemented | PM |
-| implemented | test_in_progress | PM |
-| test_in_progress | tested_pass | Tester |
-| test_in_progress | tested_fail | Tester |
-| tested_pass | done | PM |
-| any | blocked | PM |
-| any | deferred | PM |
-| any | needs_changes | PM |
-
-Illegal transitions must be rejected.
+          "qa": {
+            "test_plan": "Testing approach",
+            "test_cases": [
+              {
+                "id": "TC-1",
+                "title": "Happy path",
+                "steps": "...",
+                "expected": "...",
+                "status": "pass",
+                "notes": ""
+              }
+            ],
+            "test_results": {
+              "status": "pass",
+              "notes": "All tests green"
+            }
+          }
+        }
+      }
+    }
 
 ---
 
-## 7. Canonical State File
+## Role Model (Enforced by API)
 
-### File Name
-`project_status.json`
+Each agent can **only update its own section**.
 
-### Purpose
-- Tracks **every requirement from REQUIREMENTS.md**
-- Records design, implementation, test, and approval data
-- Acts as the single operational truth
+| Role | Writable Section |
+|----|------------------|
+| Product Manager | `pm`, `priority`, `status`, final decisions |
+| Architect | `architecture` |
+| Coder | `engineering` |
+| Tester | `qa` |
+| System | requirement creation & sync |
+
+Because access is enforced at the API layer:
+- no `updated_by` fields are stored
+- authorship is implicit
 
 ---
 
-## 8. Orchestrator API (Minimal)
+## API Surface (Minimal)
 
 ### Read
-- `GET /project`
-- `GET /requirements/{id}`
+- `GET /v1/requirements`
+- `GET /v1/requirements/{id}`
 
-### Propose Update
-- `PATCH /requirements/{id}`
+### Write (replace-only, role-scoped)
+- `PUT /v1/requirements/{id}/pm`
+- `PUT /v1/requirements/{id}/architecture`
+- `PUT /v1/requirements/{id}/engineering`
+- `PUT /v1/requirements/{id}/qa`
+- `PUT /v1/requirements/{id}/pm-decision`
+
+### System
+- `POST /v1/requirements/sync`
+  - Parses `REQUIREMENTS.md`
+  - Creates / updates requirement entries
+  - Preserves existing sub-sections
+
+No patch semantics.  
+No diff ingestion.  
+No repo mutation.
 
 ---
 
-## 9. Success Criteria
+## Status Lifecycle (Optional Enforcement)
 
-The system is correct if:
-- Every requirement is accounted for
-- Every change is auditable
-- Every “done” item has passed tests
-- PM sign-off is explicit
-- No agent can exceed its authority
+Recommended statuses:
+- `future`
+- `ready_for_design`
+- `design_in_progress`
+- `ready_for_implementation`
+- `implementation_in_progress`
+- `ready_for_test`
+- `test_in_progress`
+- `ready_for_pm_review`
+- `done`
+- `blocked`
+
+You may:
+- enforce transitions
+- or make status PM-only
+- or ignore enforcement entirely
+
+---
+
+## Intended Usage Pattern
+
+1. PM defines requirements in `REQUIREMENTS.md`
+2. System syncs requirements into Redis
+3. Agents work directly in the repo
+4. Agents periodically update their section in orchestrator memory
+5. PM reviews, approves, or provides feedback
+6. Memory keeps all agents aligned without re-reading the repo
+
+---
+
+## Non-Goals (Explicit)
+
+This orchestrator is **not**:
+- a CI system
+- a GitHub replacement
+- a workflow engine
+- a long-lived source of truth
+- a multi-project platform
+
+It is deliberately small and replaceable.
