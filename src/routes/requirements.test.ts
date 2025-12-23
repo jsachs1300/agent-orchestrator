@@ -34,14 +34,18 @@ const baseState = (): State => ({
   }
 });
 
-const withHeaders = (role: string) => ({
+const roles = ["pm", "architect", "coder", "tester", "system"] as const;
+
+type Role = (typeof roles)[number];
+
+const withHeaders = (role: Role) => ({
   "X-Agent-Role": role,
-  "X-Agent-Id": "agent-1"
+  "X-Agent-Id": `${role}-1`
 });
 
 describe("requirements auth", () => {
   beforeEach(() => {
-    (getState as ReturnType<typeof vi.fn>).mockResolvedValue(baseState());
+    (getState as ReturnType<typeof vi.fn>).mockImplementation(async () => baseState());
     (setState as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
   });
 
@@ -54,34 +58,112 @@ describe("requirements auth", () => {
     expect(response.body.error).toBe("unauthorized");
   });
 
-  it("returns 401 when role is not allowed for route", async () => {
+  it("returns 401 when X-Agent-Id is missing", async () => {
     const response = await request(app)
-      .put("/v1/requirements/REQ-1/architecture")
-      .set(withHeaders("coder"))
-      .send({ section: { status: "in_progress", design_spec: "spec" } });
+      .get("/v1/requirements")
+      .set("X-Agent-Role", "pm");
 
     expect(response.status).toBe(401);
-    expect(response.body.required_role).toBe("architect");
+    expect(response.body.error).toBe("unauthorized");
   });
 
-  it("allows pm to update overall status", async () => {
-    const response = await request(app)
-      .put("/v1/requirements/REQ-1/status")
-      .set(withHeaders("pm"))
-      .send({ overall_status: "completed" });
+  it("allows all roles to read requirements", async () => {
+    for (const role of roles) {
+      const listResponse = await request(app)
+        .get("/v1/requirements")
+        .set(withHeaders(role));
 
-    expect(response.status).toBe(200);
-    expect(response.body.overall_status).toBe("completed");
+      expect(listResponse.status).toBe(200);
+      expect(listResponse.body.requirements).toBeDefined();
+
+      const itemResponse = await request(app)
+        .get("/v1/requirements/REQ-1")
+        .set(withHeaders(role));
+
+      expect(itemResponse.status).toBe(200);
+      expect(itemResponse.body.req_id).toBe("REQ-1");
+    }
   });
 
-  it("rejects non-pm overall status updates", async () => {
-    const response = await request(app)
-      .put("/v1/requirements/REQ-1/status")
-      .set(withHeaders("coder"))
-      .send({ overall_status: "completed" });
+  it("enforces role-based writes for each endpoint", async () => {
+    const cases: Array<{ role: Role; path: string; body: object; allowed: Role }> = [
+      {
+        role: "pm",
+        path: "/v1/requirements/REQ-1/pm",
+        body: {
+          section: { status: "in_progress", direction: "dir", feedback: "", decision: "pending" },
+          priority: { tier: "p0", rank: 1 }
+        },
+        allowed: "pm"
+      },
+      {
+        role: "architect",
+        path: "/v1/requirements/REQ-1/architecture",
+        body: { section: { status: "in_progress", design_spec: "spec" } },
+        allowed: "architect"
+      },
+      {
+        role: "coder",
+        path: "/v1/requirements/REQ-1/engineering",
+        body: { section: { status: "in_progress", implementation_notes: "notes", pr: null } },
+        allowed: "coder"
+      },
+      {
+        role: "tester",
+        path: "/v1/requirements/REQ-1/qa",
+        body: {
+          section: {
+            status: "in_progress",
+            test_plan: "plan",
+            test_cases: [],
+            test_results: { status: "", notes: "" }
+          }
+        },
+        allowed: "tester"
+      },
+      {
+        role: "pm",
+        path: "/v1/requirements/REQ-1/status",
+        body: { overall_status: "in_progress" },
+        allowed: "pm"
+      }
+    ];
 
-    expect(response.status).toBe(401);
-    expect(response.body.required_role).toBe("pm");
+    for (const testCase of cases) {
+      for (const role of roles) {
+        const response = await request(app)
+          .put(testCase.path)
+          .set(withHeaders(role))
+          .send(testCase.body);
+
+        if (role === testCase.allowed) {
+          expect(response.status).toBe(200);
+        } else {
+          expect(response.status).toBe(401);
+        }
+      }
+    }
+  });
+
+  it("allows only pm to bulk create", async () => {
+    const body = {
+      requirements: [
+        { req_id: "REQ-2", title: "Requirement 2", priority: { tier: "p1", rank: 1 } }
+      ]
+    };
+
+    for (const role of roles) {
+      const response = await request(app)
+        .post("/v1/requirements/bulk")
+        .set(withHeaders(role))
+        .send(body);
+
+      if (role === "pm") {
+        expect(response.status).toBe(200);
+      } else {
+        expect(response.status).toBe(401);
+      }
+    }
   });
 
   it("rejects invalid section status values", async () => {
