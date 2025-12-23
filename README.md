@@ -1,6 +1,6 @@
 # Minimal Agent Orchestrator (Single-Project)
 
-This orchestrator provides **centralized, shared memory** for multiple AI agents working on a single Git repository.  
+This orchestrator provides **centralized, shared memory** for multiple AI agents working on a single Git repository.
 It is intentionally **minimal, disposable, and opinionated**.
 
 - **Git is the source of truth** for code, diffs, and artifacts
@@ -17,7 +17,7 @@ The orchestrator stores **structured project memory** so agents can work:
 - with shared context
 - toward a clearly defined end goal
 
-That end goal is defined in **`REQUIREMENTS.md`**, which lives in the project repository.
+`REQUIREMENTS.md` is freeform and interpreted by PMs. The orchestrator does not read from disk; all inputs arrive via API requests.
 
 The orchestrator:
 - does **not** manage code
@@ -35,20 +35,24 @@ For **each requirement / feature**, the orchestrator stores only coordination ar
    - Direction for what to build
    - Priority
    - Approval or feedback
+   - Section status
 
 2. **Architecture**
    - Design spec (summary, key decisions, constraints)
    - Pointers to repo docs if applicable
+   - Section status
 
 3. **Engineering**
    - What was built
    - Known limitations
    - Pull request / commit references
+   - Section status
 
 4. **QA**
    - Test plan
    - Test cases
    - Test results
+   - Section status
 
 Everything else (code, diffs, history) lives in Git.
 
@@ -62,8 +66,6 @@ Everything else (code, diffs, history) lives in Git.
 - **JSON-only storage**
 - **REST API access**
 
-State can be wiped at any time and rebuilt from `REQUIREMENTS.md`.
-
 ---
 
 ## Canonical Redis State Shape
@@ -76,19 +78,22 @@ State can be wiped at any time and rebuilt from `REQUIREMENTS.md`.
           "id": "REQ-1",
           "title": "Short description",
           "priority": { "tier": "p0", "rank": 1 },
-          "status": "implementation_in_progress",
+          "status": "open",
 
           "pm": {
+            "status": "unaddressed",
             "direction": "What to build and acceptance criteria",
             "feedback": "",
             "decision": "pending"
           },
 
           "architecture": {
+            "status": "unaddressed",
             "design_spec": "Key design decisions and constraints"
           },
 
           "engineering": {
+            "status": "unaddressed",
             "implementation_notes": "What was built, what wasn't, known issues",
             "pr": {
               "number": 123,
@@ -99,6 +104,7 @@ State can be wiped at any time and rebuilt from `REQUIREMENTS.md`.
           },
 
           "qa": {
+            "status": "unaddressed",
             "test_plan": "Testing approach",
             "test_cases": [
               {
@@ -123,15 +129,21 @@ State can be wiped at any time and rebuilt from `REQUIREMENTS.md`.
 
 ## Role Model (Enforced by API)
 
+Role identity is passed by headers:
+- `X-Agent-Role`: `pm`, `architect`, `coder`, `tester`, `system`
+- `X-Agent-Id`: string (trace/debug only)
+
+Missing or invalid headers return HTTP 401. Role mismatch returns HTTP 401.
+
 Each agent can **only update its own section**.
 
 | Role | Writable Section |
 |----|------------------|
-| Product Manager | `pm`, `priority`, `status`, final decisions |
+| Product Manager | `pm`, `priority`, overall `status`, final decisions |
 | Architect | `architecture` |
 | Coder | `engineering` |
 | Tester | `qa` |
-| System | requirement creation & sync |
+| System | none (reserved) |
 
 Because access is enforced at the API layer:
 - no `updated_by` fields are stored
@@ -142,6 +154,7 @@ Because access is enforced at the API layer:
 ## API Surface (Minimal)
 
 ### Read
+- `GET /health`
 - `GET /v1/requirements`
 - `GET /v1/requirements/{id}`
 
@@ -150,49 +163,40 @@ Because access is enforced at the API layer:
 - `PUT /v1/requirements/{id}/architecture`
 - `PUT /v1/requirements/{id}/engineering`
 - `PUT /v1/requirements/{id}/qa`
-- `PUT /v1/requirements/{id}/pm-decision`
+- `PUT /v1/requirements/{id}/status`
 
-### System
-- `POST /v1/requirements/sync`
-  - Parses `REQUIREMENTS.md`
-  - Creates / updates requirement entries
-  - Preserves existing sub-sections
+### Bulk (PM only)
+- `POST /v1/requirements/bulk`
 
-No patch semantics.  
-No diff ingestion.  
+No patch semantics.
+No diff ingestion.
 No repo mutation.
 
 ---
 
-## Status Lifecycle (Optional Enforcement)
+## Status Lifecycle (Authoritative)
 
-Recommended statuses:
-- `future`
-- `ready_for_design`
-- `design_in_progress`
-- `ready_for_implementation`
-- `implementation_in_progress`
-- `ready_for_test`
-- `test_in_progress`
+Section statuses:
+- `unaddressed`
+- `in_progress`
+- `complete`
+- `blocked`
+
+Overall requirement status (PM-only):
+- `open`
 - `ready_for_pm_review`
 - `done`
 - `blocked`
-
-You may:
-- enforce transitions
-- or make status PM-only
-- or ignore enforcement entirely
 
 ---
 
 ## Intended Usage Pattern
 
-1. PM defines requirements in `REQUIREMENTS.md`
-2. System syncs requirements into Redis
-3. Agents work directly in the repo
-4. Agents periodically update their section in orchestrator memory
-5. PM reviews, approves, or provides feedback
-6. Memory keeps all agents aligned without re-reading the repo
+1. PM interprets REQUIREMENTS.md and creates requirements via API
+2. Agents work directly in the repo
+3. Agents periodically update their section in orchestrator memory
+4. PM reviews, approves, or provides feedback
+5. Memory keeps all agents aligned without re-reading the repo
 
 ---
 
@@ -204,5 +208,6 @@ This orchestrator is **not**:
 - a workflow engine
 - a long-lived source of truth
 - a multi-project platform
+- a filesystem parser
 
 It is deliberately small and replaceable.

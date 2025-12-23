@@ -8,7 +8,7 @@ It is the single source of truth for:
 - what is in scope vs out of scope
 - how completion is judged
 
-All agents (PM, Architect, Coder, Tester) must operate strictly within the boundaries defined here.  
+All agents (PM, Architect, Coder, Tester) must operate strictly within the boundaries defined here.
 The orchestrator exists in part to persist these decisions so future agent runs do not reinterpret or recompute them.
 
 ---
@@ -22,6 +22,9 @@ A capability slice is:
 - large enough to deliver a meaningful unit of functionality
 - explicitly defined by the Product Manager
 - stable once created (agents must not reinterpret or subdivide it)
+
+REQUIREMENTS.md is **freeform** and does not require a specific format. The PM interprets it and creates
+capability slices (`REQ-n`) in orchestrator memory via API requests.
 
 Each requirement MUST define:
 - Priority (tier + rank, unique across all requirements)
@@ -40,20 +43,19 @@ Each requirement MUST define:
 
 ---
 
-## Status Lifecycle (Reference)
+## Status Rules (Authoritative)
 
-Statuses are managed in orchestrator memory, not here, but requirements are written assuming the following flow:
+Section-level statuses (per requirement):
+- `unaddressed` (default)
+- `in_progress`
+- `complete`
+- `blocked`
 
-future  
-ready_for_design  
-design_in_progress  
-ready_for_implementation  
-implementation_in_progress  
-ready_for_test  
-test_in_progress  
-ready_for_pm_review  
-done  
-blocked  
+Overall requirement status (PM-only):
+- `open` (default)
+- `ready_for_pm_review`
+- `done`
+- `blocked`
 
 ---
 
@@ -94,7 +96,8 @@ This document must be treated as the authoritative shared memory across all agen
 ### Acceptance Criteria
 - Entire project state is stored under a single Redis key
 - State is JSON-serializable and human-readable
-- State includes schema_version, updated_at, and requirements map
+- State includes `schema_version`, `updated_at`, and `requirements` map
+- Each requirement includes per-section status fields and overall status
 - State is loaded and written atomically per request
 - No partial or fragmented state storage
 
@@ -105,44 +108,44 @@ This document must be treated as the authoritative shared memory across all agen
 
 ---
 
-## REQ-3: Requirements Sync from REQUIREMENTS.md
+## REQ-3: Requirement Seeding via API
 
 Priority: p0 / 3
 
 ### Description
-Provide a system endpoint that parses REQUIREMENTS.md and synchronizes requirement definitions into orchestrator memory.
-
-This ensures the orchestrator always reflects the authoritative requirements defined here.
+Allow Product Management to seed or create requirements via API input (not filesystem ingestion).
 
 ### Acceptance Criteria
-- System can parse REQUIREMENTS.md successfully
-- Missing requirements are created in memory
+- PM can create multiple requirements in a single request
+- New requirements initialize all sections with default statuses and empty content
 - Existing requirements are not deleted automatically
-- Requirement IDs and titles are synchronized
-- Existing PM, architecture, engineering, and QA sections are preserved
+- Requirement IDs and titles are stored exactly as provided
 
 ### Out of Scope
+- Parsing or reading REQUIREMENTS.md from disk
 - Automatic deletion of removed requirements
-- Semantic interpretation beyond explicit text
-- Rewriting REQUIREMENTS.md
+- Semantic interpretation beyond explicit input
 
 ---
 
-## REQ-4: Role-Scoped Write Access
+## REQ-4: Role-Scoped Write Access and Header Identity
 
 Priority: p0 / 4
 
 ### Description
 Enforce strict role-based access so each agent can only update its own section of a requirement.
 
-This guarantees ownership, prevents cross-role contamination, and simplifies auditability.
+Identity is provided via request headers and is not a security mechanism.
 
 ### Acceptance Criteria
-- PM can update only PM-related fields, priority, and status
+- Requests require `X-Agent-Role` and `X-Agent-Id` headers
+- Allowed roles: `pm`, `architect`, `coder`, `tester`, `system`
+- PM can update only PM-related fields, priority, and overall status
 - Architect can update only architecture section
 - Coder can update only engineering section
 - Tester can update only QA section
-- Invalid write attempts are rejected deterministically
+- Invalid or missing roles are rejected with HTTP 401
+- Disallowed role writes are rejected with HTTP 401
 
 ### Out of Scope
 - Field-level permissions within a role
@@ -151,7 +154,7 @@ This guarantees ownership, prevents cross-role contamination, and simplifies aud
 
 ---
 
-## REQ-5: Product Management Direction & Decision Capture
+## REQ-5: Product Management Direction, Priority, and Decision Capture
 
 Priority: p0 / 5
 
@@ -165,6 +168,8 @@ This prevents future agent runs from reinterpreting intent or scope.
 - Priority tier and rank are stored and enforced as unique
 - PM feedback can be recorded after implementation/testing
 - PM approval or rejection is explicitly captured
+- PM can set overall requirement status (`open`, `ready_for_pm_review`, `done`, `blocked`)
+- PM section status can be updated (`unaddressed`, `in_progress`, `complete`, `blocked`)
 
 ### Out of Scope
 - Automated prioritization
@@ -186,6 +191,7 @@ This serves as durable context for engineering and future agent runs.
 - Architect can store design decisions and constraints
 - Design spec is human-readable
 - References to repo documentation are allowed
+- Architecture section status can be updated (`unaddressed`, `in_progress`, `complete`, `blocked`)
 - Design spec persists across service restarts
 
 ### Out of Scope
@@ -195,7 +201,7 @@ This serves as durable context for engineering and future agent runs.
 
 ---
 
-## REQ-7: Engineering Output & PR Linking
+## REQ-7: Engineering Output and PR Linking
 
 Priority: p1 / 2
 
@@ -206,6 +212,7 @@ Allow engineers to record what was built and link it to concrete Git artifacts.
 - Engineering notes can be stored per requirement
 - Pull request number, URL, and commit hash can be recorded
 - Notes can describe limitations or follow-ups
+- Engineering section status can be updated (`unaddressed`, `in_progress`, `complete`, `blocked`)
 - No code or diffs are stored in orchestrator memory
 
 ### Out of Scope
@@ -226,6 +233,7 @@ Persist QA test plans, test cases, and test results for each capability slice.
 - Test plan text can be stored
 - Test cases can be listed with status
 - Overall test result status can be captured
+- QA section status can be updated (`unaddressed`, `in_progress`, `complete`, `blocked`)
 - Results persist for PM review
 
 ### Out of Scope
@@ -243,7 +251,7 @@ Priority: p1 / 4
 Allow Product Management to review completed work and either approve it or provide actionable feedback.
 
 ### Acceptance Criteria
-- PM can mark a requirement as approved (done)
+- PM can mark a requirement as `done`
 - PM can provide explicit feedback requiring changes
 - Decision is persisted and visible to all agents
 
@@ -263,6 +271,7 @@ The system is explicitly NOT intended to:
 - Store large artifacts
 - Support multiple projects
 - Persist long-term historical analytics
+- Read or write files from disk as part of runtime behavior
 
-This document is authoritative.  
+This document is authoritative.
 Agents must not assume behavior not explicitly defined here.

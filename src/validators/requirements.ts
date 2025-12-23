@@ -1,23 +1,40 @@
 import { z } from "zod";
 
 export const prioritySchema = z.object({
-  tier: z.string(),
-  rank: z.number().int().nonnegative()
+  tier: z.enum(["p0", "p1", "p2"]),
+  rank: z.number().int().positive()
 });
 
-export const pmSchema = z.object({
-  direction: z.string(),
-  feedback: z.string(),
-  decision: z.string()
-});
+export const sectionStatusSchema = z.enum([
+  "unaddressed",
+  "in_progress",
+  "complete",
+  "blocked"
+]);
 
-export const architectureSchema = z.object({
-  design_spec: z.string()
-});
+export const overallStatusSchema = z.enum(["open", "ready_for_pm_review", "done", "blocked"]);
 
-export const engineeringSchema = z.object({
-  implementation_notes: z.string(),
-  pr: z
+export const pmSchema = z
+  .object({
+    status: sectionStatusSchema,
+    direction: z.string(),
+    feedback: z.string(),
+    decision: z.string()
+  })
+  .strict();
+
+export const architectureSchema = z
+  .object({
+    status: sectionStatusSchema,
+    design_spec: z.string()
+  })
+  .strict();
+
+export const engineeringSchema = z
+  .object({
+    status: sectionStatusSchema,
+    implementation_notes: z.string(),
+    pr: z
     .object({
       number: z.number().int().nonnegative(),
       title: z.string(),
@@ -26,11 +43,14 @@ export const engineeringSchema = z.object({
     })
     .nullable()
     .optional()
-});
+  })
+  .strict();
 
-export const qaSchema = z.object({
-  test_plan: z.string(),
-  test_cases: z
+export const qaSchema = z
+  .object({
+    status: sectionStatusSchema,
+    test_plan: z.string(),
+    test_cases: z
     .array(
       z.object({
         id: z.string(),
@@ -50,17 +70,21 @@ export const qaSchema = z.object({
     })
     .optional()
     .default({ status: "", notes: "" })
-});
+  })
+  .strict();
 
-export const pmUpdateSchema = z.object({
-  pm: pmSchema,
-  priority: prioritySchema.optional(),
-  status: z.string().optional()
-});
+export const pmUpdateSchema = z
+  .object({
+    pm: pmSchema,
+    priority: prioritySchema.optional()
+  })
+  .strict();
 
-export const pmDecisionSchema = z.object({
-  decision: z.string()
-});
+export const overallStatusUpdateSchema = z
+  .object({
+    status: overallStatusSchema
+  })
+  .strict();
 
 export const architectureUpdateSchema = architectureSchema;
 export const engineeringUpdateSchema = engineeringSchema;

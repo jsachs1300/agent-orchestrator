@@ -6,16 +6,19 @@ export interface Priority {
 }
 
 export interface RequirementPm {
+  status: "unaddressed" | "in_progress" | "complete" | "blocked" | string;
   direction: string;
   feedback: string;
   decision: "pending" | "approved" | "rejected" | string;
 }
 
 export interface RequirementArchitecture {
+  status: "unaddressed" | "in_progress" | "complete" | "blocked" | string;
   design_spec: string;
 }
 
 export interface RequirementEngineering {
+  status: "unaddressed" | "in_progress" | "complete" | "blocked" | string;
   implementation_notes: string;
   pr?: {
     number: number;
@@ -26,6 +29,7 @@ export interface RequirementEngineering {
 }
 
 export interface RequirementQa {
+  status: "unaddressed" | "in_progress" | "complete" | "blocked" | string;
   test_plan: string;
   test_cases: Array<{
     id: string;
@@ -45,7 +49,7 @@ export interface Requirement {
   id: string;
   title: string;
   priority: Priority;
-  status: string;
+  status: "open" | "ready_for_pm_review" | "done" | "blocked" | string;
   pm: RequirementPm;
   architecture: RequirementArchitecture;
   engineering: RequirementEngineering;
