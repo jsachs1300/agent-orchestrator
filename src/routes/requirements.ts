@@ -1,29 +1,27 @@
-import { Router, Request, Response } from "express";
+import { Router, Response } from "express";
 import { z } from "zod";
 import { getState, setState } from "../redis.js";
 import {
   architectureUpdateSchema,
   engineeringUpdateSchema,
-  pmDecisionSchema,
+  overallStatusUpdateSchema,
   pmUpdateSchema,
+  prioritySchema,
   qaUpdateSchema
 } from "../validators/requirements.js";
-import { Requirement, State, Role } from "../types/state.js";
-import { readFile } from "fs/promises";
-import path from "path";
+import { Requirement, State } from "../types/state.js";
+import { requireRole } from "../middleware/auth.js";
 
 const router = Router();
 
-const roleHeader = "x-agent-role";
+const requirementIdPattern = /^REQ-\d+$/;
 
-function requireRole(roles: Role[]) {
-  return (req: Request, res: Response, next: () => void) => {
-    const roleValue = String(req.header(roleHeader) || "").toLowerCase() as Role;
-    if (!roleValue || !roles.includes(roleValue)) {
-      return res.status(403).json({ error: "forbidden" });
-    }
-    return next();
-  };
+function parseId(rawId: string): string {
+  return rawId.trim().toUpperCase();
+}
+
+function isValidRequirementId(id: string): boolean {
+  return requirementIdPattern.test(id);
 }
 
 function getRequirementOr404(state: State, id: string, res: Response): Requirement | null {
@@ -35,52 +33,44 @@ function getRequirementOr404(state: State, id: string, res: Response): Requireme
   return requirement;
 }
 
-function parseId(rawId: string): string {
-  return rawId.trim().toUpperCase();
-}
-
-function emptyRequirement(id: string, title: string): Requirement {
+function emptyRequirement(id: string, title: string, priority: Requirement["priority"]): Requirement {
   return {
     id,
     title,
-    priority: { tier: "", rank: 0 },
-    status: "future",
-    pm: { direction: "", feedback: "", decision: "pending" },
-    architecture: { design_spec: "" },
-    engineering: { implementation_notes: "", pr: null },
-    qa: { test_plan: "", test_cases: [], test_results: { status: "", notes: "" } }
+    priority,
+    status: "open",
+    pm: { status: "unaddressed", direction: "", feedback: "", decision: "pending" },
+    architecture: { status: "unaddressed", design_spec: "" },
+    engineering: { status: "unaddressed", implementation_notes: "", pr: null },
+    qa: {
+      status: "unaddressed",
+      test_plan: "",
+      test_cases: [],
+      test_results: { status: "", notes: "" }
+    }
   };
 }
 
-const requirementLineSchema = z.object({
-  id: z.string().min(1),
-  title: z.string()
-});
-
-function parseRequirementsFromText(contents: string): Array<{ id: string; title: string }> {
-  const lines = contents.split(/\r?\n/);
-  const results: Array<{ id: string; title: string }> = [];
-
-  const regex = /^\s*(?:[-*]\s*)?(?:#+\s*)?(REQ-\d+)\s*(?:[:\-–]\s*)?(.*)$/i;
-
-  for (const line of lines) {
-    const match = line.match(regex);
-    if (!match) {
-      continue;
-    }
-
-    const id = parseId(match[1]);
-    const title = match[2].trim() || id;
-    const parsed = requirementLineSchema.safeParse({ id, title });
-    if (!parsed.success) {
-      continue;
-    }
-
-    results.push({ id, title });
-  }
-
-  return results;
+function hasPriorityConflict(state: State, id: string, tier: string, rank: number): boolean {
+  return Object.values(state.requirements).some(
+    (requirement) =>
+      requirement.id !== id &&
+      requirement.priority.tier === tier &&
+      requirement.priority.rank === rank
+  );
 }
+
+const bulkSchema = z.object({
+  requirements: z.array(
+    z
+      .object({
+        id: z.string(),
+        title: z.string(),
+        priority: prioritySchema
+      })
+      .strict()
+  )
+}).strict();
 
 router.get("/v1/requirements", async (_req, res) => {
   const state = await getState();
@@ -97,7 +87,7 @@ router.get("/v1/requirements/:id", async (req, res) => {
   return res.json(requirement);
 });
 
-router.put("/v1/requirements/:id/pm", requireRole(["pm"]), async (req, res) => {
+router.put("/v1/requirements/:id/pm", requireRole("pm"), async (req, res) => {
   const id = parseId(req.params.id);
   const parsed = pmUpdateSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -112,19 +102,22 @@ router.put("/v1/requirements/:id/pm", requireRole(["pm"]), async (req, res) => {
 
   requirement.pm = parsed.data.pm;
   if (parsed.data.priority) {
+    if (hasPriorityConflict(state, id, parsed.data.priority.tier, parsed.data.priority.rank)) {
+      return res.status(400).json({
+        error: "priority_conflict",
+        message: "priority tier+rank must be unique"
+      });
+    }
     requirement.priority = parsed.data.priority;
-  }
-  if (parsed.data.status) {
-    requirement.status = parsed.data.status;
   }
 
   await setState(state);
   return res.json(requirement);
 });
 
-router.put("/v1/requirements/:id/pm-decision", requireRole(["pm"]), async (req, res) => {
+router.put("/v1/requirements/:id/status", requireRole("pm"), async (req, res) => {
   const id = parseId(req.params.id);
-  const parsed = pmDecisionSchema.safeParse(req.body);
+  const parsed = overallStatusUpdateSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "invalid_body", details: parsed.error.flatten() });
   }
@@ -135,14 +128,14 @@ router.put("/v1/requirements/:id/pm-decision", requireRole(["pm"]), async (req, 
     return;
   }
 
-  requirement.pm.decision = parsed.data.decision;
+  requirement.status = parsed.data.status;
   await setState(state);
   return res.json(requirement);
 });
 
 router.put(
   "/v1/requirements/:id/architecture",
-  requireRole(["architect"]),
+  requireRole("architect"),
   async (req, res) => {
     const id = parseId(req.params.id);
     const parsed = architectureUpdateSchema.safeParse(req.body);
@@ -162,7 +155,7 @@ router.put(
   }
 );
 
-router.put("/v1/requirements/:id/engineering", requireRole(["coder"]), async (req, res) => {
+router.put("/v1/requirements/:id/engineering", requireRole("coder"), async (req, res) => {
   const id = parseId(req.params.id);
   const parsed = engineeringUpdateSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -180,7 +173,7 @@ router.put("/v1/requirements/:id/engineering", requireRole(["coder"]), async (re
   return res.json(requirement);
 });
 
-router.put("/v1/requirements/:id/qa", requireRole(["tester"]), async (req, res) => {
+router.put("/v1/requirements/:id/qa", requireRole("tester"), async (req, res) => {
   const id = parseId(req.params.id);
   const parsed = qaUpdateSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -193,42 +186,72 @@ router.put("/v1/requirements/:id/qa", requireRole(["tester"]), async (req, res) 
     return;
   }
 
-  const qa = {
+  requirement.qa = {
+    status: parsed.data.status,
     test_plan: parsed.data.test_plan,
     test_cases: parsed.data.test_cases,
     test_results: parsed.data.test_results
   };
 
-  requirement.qa = qa;
   await setState(state);
   return res.json(requirement);
 });
 
-router.post("/v1/requirements/sync", requireRole(["system"]), async (_req, res) => {
-  const filePath = path.join(process.cwd(), "REQUIREMENTS.md");
-
-  let contents = "";
-  try {
-    contents = await readFile(filePath, "utf-8");
-  } catch (err: any) {
-    return res.status(400).json({ error: "requirements_file_missing" });
-  }
-
-  const parsedRequirements = parseRequirementsFromText(contents);
-  if (parsedRequirements.length === 0) {
-    return res.status(400).json({ error: "no_requirements_found" });
+router.post("/v1/requirements/bulk", requireRole("pm"), async (req, res) => {
+  const parsed = bulkSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "invalid_body", details: parsed.error.flatten() });
   }
 
   const state = await getState();
+  const seenIds = new Set<string>();
+  const seenPriorities = new Set<string>();
 
-  for (const entry of parsedRequirements) {
-    const existing = state.requirements[entry.id];
+  for (const entry of parsed.data.requirements) {
+    const normalizedId = parseId(entry.id);
+    if (!isValidRequirementId(normalizedId)) {
+      return res.status(400).json({
+        error: "invalid_requirement_id",
+        message: `invalid requirement id: ${entry.id}`
+      });
+    }
+
+    if (seenIds.has(normalizedId)) {
+      return res.status(400).json({
+        error: "duplicate_requirement_id",
+        message: `duplicate requirement id: ${normalizedId}`
+      });
+    }
+    seenIds.add(normalizedId);
+
+    const existing = state.requirements[normalizedId];
+    const priorityKey = `${entry.priority.tier}:${entry.priority.rank}`;
+    if (seenPriorities.has(priorityKey)) {
+      return res.status(400).json({
+        error: "priority_conflict",
+        message: "priority tier+rank must be unique"
+      });
+    }
+    seenPriorities.add(priorityKey);
+
+    if (hasPriorityConflict(state, normalizedId, entry.priority.tier, entry.priority.rank)) {
+      return res.status(400).json({
+        error: "priority_conflict",
+        message: "priority tier+rank must be unique"
+      });
+    }
+
     if (existing) {
       existing.title = entry.title;
+      existing.priority = entry.priority;
       continue;
     }
 
-    state.requirements[entry.id] = emptyRequirement(entry.id, entry.title);
+    state.requirements[normalizedId] = emptyRequirement(
+      normalizedId,
+      entry.title,
+      entry.priority
+    );
   }
 
   await setState(state);

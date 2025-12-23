@@ -33,6 +33,6 @@
 - Link to relevant issues if applicable.
 
 ## Configuration & Runtime Notes
-- Required role header: `X-Agent-Role` with one of `pm`, `architect`, `coder`, `tester`, or `system`.
+- Required headers: `X-Agent-Role` and `X-Agent-Id` for all requests (401 on missing/invalid).
 - Redis stores a single JSON document key named `state` with `schema_version` fixed at `1.0`.
-- Sync endpoint parses `REQUIREMENTS.md` from repo root; ensure the file exists before syncing.
+- Requirements are seeded via `POST /v1/requirements/bulk`; no filesystem ingestion.
