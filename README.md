@@ -158,6 +158,7 @@ Because access is enforced at the API layer:
 
 ### Read
 - `GET /health`
+- `GET /prompt/{name}` (public prompt files, e.g. `prompt/pm_system_prompt`)
 - `GET /v1/requirements`
 - `GET /v1/requirements/{id}`
 
@@ -174,6 +175,86 @@ Because access is enforced at the API layer:
 No patch semantics.
 No diff ingestion.
 No repo mutation.
+
+---
+
+## Quickstart
+
+Base URL assumes `http://localhost:3000`.
+
+Public endpoints (no headers required):
+```bash
+curl http://localhost:3000/health
+curl http://localhost:3000/prompt/pm_system_prompt
+```
+
+Get all requirements (headers required):
+```bash
+curl http://localhost:3000/v1/requirements \\
+  -H "X-Agent-Role: pm" \\
+  -H "X-Agent-Id: pm-1"
+```
+
+Get one requirement:
+```bash
+curl http://localhost:3000/v1/requirements/REQ-1 \\
+  -H "X-Agent-Role: pm" \\
+  -H "X-Agent-Id: pm-1"
+```
+
+Bulk create requirements (PM only):
+```bash
+curl -X POST http://localhost:3000/v1/requirements/bulk \\
+  -H "Content-Type: application/json" \\
+  -H "X-Agent-Role: pm" \\
+  -H "X-Agent-Id: pm-1" \\
+  -d '{\"requirements\":[{\"req_id\":\"REQ-1\",\"title\":\"Core service\",\"priority\":{\"tier\":\"p0\",\"rank\":1}}]}'
+```
+
+Update overall status (PM only):
+```bash
+curl -X PUT http://localhost:3000/v1/requirements/REQ-1/status \\
+  -H "Content-Type: application/json" \\
+  -H "X-Agent-Role: pm" \\
+  -H "X-Agent-Id: pm-1" \\
+  -d '{\"overall_status\":\"in_progress\"}'
+```
+
+Update PM section (PM only):
+```bash
+curl -X PUT http://localhost:3000/v1/requirements/REQ-1/pm \\
+  -H "Content-Type: application/json" \\
+  -H "X-Agent-Role: pm" \\
+  -H "X-Agent-Id: pm-1" \\
+  -d '{\"section\":{\"status\":\"in_progress\",\"direction\":\"...\",\"feedback\":\"\",\"decision\":\"pending\"},\"priority\":{\"tier\":\"p0\",\"rank\":1}}'
+```
+
+Update architecture section (Architect only):
+```bash
+curl -X PUT http://localhost:3000/v1/requirements/REQ-1/architecture \\
+  -H "Content-Type: application/json" \\
+  -H "X-Agent-Role: architect" \\
+  -H "X-Agent-Id: architect-1" \\
+  -d '{\"section\":{\"status\":\"in_progress\",\"design_spec\":\"...\"}}'
+```
+
+Update engineering section (Coder only):
+```bash
+curl -X PUT http://localhost:3000/v1/requirements/REQ-1/engineering \\
+  -H "Content-Type: application/json" \\
+  -H "X-Agent-Role: coder" \\
+  -H "X-Agent-Id: coder-1" \\
+  -d '{\"section\":{\"status\":\"in_progress\",\"implementation_notes\":\"...\",\"pr\":null}}'
+```
+
+Update QA section (Tester only):
+```bash
+curl -X PUT http://localhost:3000/v1/requirements/REQ-1/qa \\
+  -H "Content-Type: application/json" \\
+  -H "X-Agent-Role: tester" \\
+  -H "X-Agent-Id: tester-1" \\
+  -d '{\"section\":{\"status\":\"in_progress\",\"test_plan\":\"...\",\"test_cases\":[],\"test_results\":{\"status\":\"\",\"notes\":\"\"}}}'
+```
 
 ---
 
