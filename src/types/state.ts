@@ -5,20 +5,29 @@ export interface Priority {
   rank: number;
 }
 
-export interface RequirementPm {
-  status: "unaddressed" | "in_progress" | "complete" | "blocked" | string;
+export type SectionStatus = "unaddressed" | "in_progress" | "complete" | "blocked" | string;
+export type OverallStatus =
+  | "not_started"
+  | "in_progress"
+  | "blocked"
+  | "in_review"
+  | "completed"
+  | string;
+
+export interface PmSection {
+  status: SectionStatus;
   direction: string;
   feedback: string;
   decision: "pending" | "approved" | "rejected" | string;
 }
 
-export interface RequirementArchitecture {
-  status: "unaddressed" | "in_progress" | "complete" | "blocked" | string;
+export interface ArchitectSection {
+  status: SectionStatus;
   design_spec: string;
 }
 
-export interface RequirementEngineering {
-  status: "unaddressed" | "in_progress" | "complete" | "blocked" | string;
+export interface CoderSection {
+  status: SectionStatus;
   implementation_notes: string;
   pr?: {
     number: number;
@@ -28,8 +37,8 @@ export interface RequirementEngineering {
   } | null;
 }
 
-export interface RequirementQa {
-  status: "unaddressed" | "in_progress" | "complete" | "blocked" | string;
+export interface TesterSection {
+  status: SectionStatus;
   test_plan: string;
   test_cases: Array<{
     id: string;
@@ -45,15 +54,19 @@ export interface RequirementQa {
   };
 }
 
+export interface RequirementSections {
+  pm: PmSection;
+  architect: ArchitectSection;
+  coder: CoderSection;
+  tester: TesterSection;
+}
+
 export interface Requirement {
-  id: string;
+  req_id: string;
   title: string;
   priority: Priority;
-  status: "open" | "ready_for_pm_review" | "done" | "blocked" | string;
-  pm: RequirementPm;
-  architecture: RequirementArchitecture;
-  engineering: RequirementEngineering;
-  qa: RequirementQa;
+  overall_status: OverallStatus;
+  sections: RequirementSections;
 }
 
 export interface State {

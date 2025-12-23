@@ -12,9 +12,15 @@ export const sectionStatusSchema = z.enum([
   "blocked"
 ]);
 
-export const overallStatusSchema = z.enum(["open", "ready_for_pm_review", "done", "blocked"]);
+export const overallStatusSchema = z.enum([
+  "not_started",
+  "in_progress",
+  "blocked",
+  "in_review",
+  "completed"
+]);
 
-export const pmSchema = z
+export const pmSectionSchema = z
   .object({
     status: sectionStatusSchema,
     direction: z.string(),
@@ -23,69 +29,83 @@ export const pmSchema = z
   })
   .strict();
 
-export const architectureSchema = z
+export const architectSectionSchema = z
   .object({
     status: sectionStatusSchema,
     design_spec: z.string()
   })
   .strict();
 
-export const engineeringSchema = z
+export const coderSectionSchema = z
   .object({
     status: sectionStatusSchema,
     implementation_notes: z.string(),
     pr: z
-    .object({
-      number: z.number().int().nonnegative(),
-      title: z.string(),
-      url: z.string().url(),
-      commit: z.string()
-    })
-    .nullable()
-    .optional()
+      .object({
+        number: z.number().int().nonnegative(),
+        title: z.string(),
+        url: z.string().url(),
+        commit: z.string()
+      })
+      .nullable()
+      .optional()
   })
   .strict();
 
-export const qaSchema = z
+export const testerSectionSchema = z
   .object({
     status: sectionStatusSchema,
     test_plan: z.string(),
     test_cases: z
-    .array(
-      z.object({
-        id: z.string(),
-        title: z.string(),
-        steps: z.string(),
-        expected: z.string(),
+      .array(
+        z.object({
+          id: z.string(),
+          title: z.string(),
+          steps: z.string(),
+          expected: z.string(),
+          status: z.string(),
+          notes: z.string()
+        })
+      )
+      .optional()
+      .default([]),
+    test_results: z
+      .object({
         status: z.string(),
         notes: z.string()
       })
-    )
-    .optional()
-    .default([]),
-  test_results: z
-    .object({
-      status: z.string(),
-      notes: z.string()
-    })
-    .optional()
-    .default({ status: "", notes: "" })
+      .optional()
+      .default({ status: "", notes: "" })
   })
   .strict();
 
 export const pmUpdateSchema = z
   .object({
-    pm: pmSchema,
+    section: pmSectionSchema,
     priority: prioritySchema.optional()
   })
   .strict();
 
 export const overallStatusUpdateSchema = z
   .object({
-    status: overallStatusSchema
+    overall_status: overallStatusSchema
   })
   .strict();
 
-export const architectureUpdateSchema = architectureSchema;
-export const engineeringUpdateSchema = engineeringSchema;
-export const qaUpdateSchema = qaSchema;
+export const architectUpdateSchema = z
+  .object({
+    section: architectSectionSchema
+  })
+  .strict();
+
+export const coderUpdateSchema = z
+  .object({
+    section: coderSectionSchema
+  })
+  .strict();
+
+export const testerUpdateSchema = z
+  .object({
+    section: testerSectionSchema
+  })
+  .strict();

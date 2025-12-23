@@ -2,12 +2,12 @@ import { Router, Response } from "express";
 import { z } from "zod";
 import { getState, setState } from "../redis.js";
 import {
-  architectureUpdateSchema,
-  engineeringUpdateSchema,
+  architectUpdateSchema,
+  coderUpdateSchema,
   overallStatusUpdateSchema,
   pmUpdateSchema,
   prioritySchema,
-  qaUpdateSchema
+  testerUpdateSchema
 } from "../validators/requirements.js";
 import { Requirement, State } from "../types/state.js";
 import { requireRole } from "../middleware/auth.js";
@@ -35,18 +35,20 @@ function getRequirementOr404(state: State, id: string, res: Response): Requireme
 
 function emptyRequirement(id: string, title: string, priority: Requirement["priority"]): Requirement {
   return {
-    id,
+    req_id: id,
     title,
     priority,
-    status: "open",
-    pm: { status: "unaddressed", direction: "", feedback: "", decision: "pending" },
-    architecture: { status: "unaddressed", design_spec: "" },
-    engineering: { status: "unaddressed", implementation_notes: "", pr: null },
-    qa: {
-      status: "unaddressed",
-      test_plan: "",
-      test_cases: [],
-      test_results: { status: "", notes: "" }
+    overall_status: "not_started",
+    sections: {
+      pm: { status: "unaddressed", direction: "", feedback: "", decision: "pending" },
+      architect: { status: "unaddressed", design_spec: "" },
+      coder: { status: "unaddressed", implementation_notes: "", pr: null },
+      tester: {
+        status: "unaddressed",
+        test_plan: "",
+        test_cases: [],
+        test_results: { status: "", notes: "" }
+      }
     }
   };
 }
@@ -54,23 +56,25 @@ function emptyRequirement(id: string, title: string, priority: Requirement["prio
 function hasPriorityConflict(state: State, id: string, tier: string, rank: number): boolean {
   return Object.values(state.requirements).some(
     (requirement) =>
-      requirement.id !== id &&
+      requirement.req_id !== id &&
       requirement.priority.tier === tier &&
       requirement.priority.rank === rank
   );
 }
 
-const bulkSchema = z.object({
-  requirements: z.array(
-    z
-      .object({
-        id: z.string(),
-        title: z.string(),
-        priority: prioritySchema
-      })
-      .strict()
-  )
-}).strict();
+const bulkSchema = z
+  .object({
+    requirements: z.array(
+      z
+        .object({
+          req_id: z.string(),
+          title: z.string(),
+          priority: prioritySchema
+        })
+        .strict()
+    )
+  })
+  .strict();
 
 router.get("/v1/requirements", async (_req, res) => {
   const state = await getState();
@@ -100,7 +104,7 @@ router.put("/v1/requirements/:id/pm", requireRole("pm"), async (req, res) => {
     return;
   }
 
-  requirement.pm = parsed.data.pm;
+  requirement.sections.pm = parsed.data.section;
   if (parsed.data.priority) {
     if (hasPriorityConflict(state, id, parsed.data.priority.tier, parsed.data.priority.rank)) {
       return res.status(400).json({
@@ -128,7 +132,7 @@ router.put("/v1/requirements/:id/status", requireRole("pm"), async (req, res) =>
     return;
   }
 
-  requirement.status = parsed.data.status;
+  requirement.overall_status = parsed.data.overall_status;
   await setState(state);
   return res.json(requirement);
 });
@@ -138,7 +142,7 @@ router.put(
   requireRole("architect"),
   async (req, res) => {
     const id = parseId(req.params.id);
-    const parsed = architectureUpdateSchema.safeParse(req.body);
+    const parsed = architectUpdateSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: "invalid_body", details: parsed.error.flatten() });
     }
@@ -149,7 +153,7 @@ router.put(
       return;
     }
 
-    requirement.architecture = parsed.data;
+    requirement.sections.architect = parsed.data.section;
     await setState(state);
     return res.json(requirement);
   }
@@ -157,7 +161,7 @@ router.put(
 
 router.put("/v1/requirements/:id/engineering", requireRole("coder"), async (req, res) => {
   const id = parseId(req.params.id);
-  const parsed = engineeringUpdateSchema.safeParse(req.body);
+  const parsed = coderUpdateSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "invalid_body", details: parsed.error.flatten() });
   }
@@ -168,14 +172,14 @@ router.put("/v1/requirements/:id/engineering", requireRole("coder"), async (req,
     return;
   }
 
-  requirement.engineering = parsed.data;
+  requirement.sections.coder = parsed.data.section;
   await setState(state);
   return res.json(requirement);
 });
 
 router.put("/v1/requirements/:id/qa", requireRole("tester"), async (req, res) => {
   const id = parseId(req.params.id);
-  const parsed = qaUpdateSchema.safeParse(req.body);
+  const parsed = testerUpdateSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "invalid_body", details: parsed.error.flatten() });
   }
@@ -186,13 +190,7 @@ router.put("/v1/requirements/:id/qa", requireRole("tester"), async (req, res) =>
     return;
   }
 
-  requirement.qa = {
-    status: parsed.data.status,
-    test_plan: parsed.data.test_plan,
-    test_cases: parsed.data.test_cases,
-    test_results: parsed.data.test_results
-  };
-
+  requirement.sections.tester = parsed.data.section;
   await setState(state);
   return res.json(requirement);
 });
@@ -208,11 +206,11 @@ router.post("/v1/requirements/bulk", requireRole("pm"), async (req, res) => {
   const seenPriorities = new Set<string>();
 
   for (const entry of parsed.data.requirements) {
-    const normalizedId = parseId(entry.id);
+    const normalizedId = parseId(entry.req_id);
     if (!isValidRequirementId(normalizedId)) {
       return res.status(400).json({
         error: "invalid_requirement_id",
-        message: `invalid requirement id: ${entry.id}`
+        message: `invalid requirement id: ${entry.req_id}`
       });
     }
 
@@ -244,6 +242,7 @@ router.post("/v1/requirements/bulk", requireRole("pm"), async (req, res) => {
     if (existing) {
       existing.title = entry.title;
       existing.priority = entry.priority;
+      existing.req_id = normalizedId;
       continue;
     }
 

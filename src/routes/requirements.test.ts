@@ -15,18 +15,20 @@ const baseState = (): State => ({
   updated_at: new Date().toISOString(),
   requirements: {
     "REQ-1": {
-      id: "REQ-1",
+      req_id: "REQ-1",
       title: "Requirement 1",
       priority: { tier: "p0", rank: 1 },
-      status: "open",
-      pm: { status: "unaddressed", direction: "", feedback: "", decision: "pending" },
-      architecture: { status: "unaddressed", design_spec: "" },
-      engineering: { status: "unaddressed", implementation_notes: "", pr: null },
-      qa: {
-        status: "unaddressed",
-        test_plan: "",
-        test_cases: [],
-        test_results: { status: "", notes: "" }
+      overall_status: "not_started",
+      sections: {
+        pm: { status: "unaddressed", direction: "", feedback: "", decision: "pending" },
+        architect: { status: "unaddressed", design_spec: "" },
+        coder: { status: "unaddressed", implementation_notes: "", pr: null },
+        tester: {
+          status: "unaddressed",
+          test_plan: "",
+          test_cases: [],
+          test_results: { status: "", notes: "" }
+        }
       }
     }
   }
@@ -56,7 +58,7 @@ describe("requirements auth", () => {
     const response = await request(app)
       .put("/v1/requirements/REQ-1/architecture")
       .set(withHeaders("coder"))
-      .send({ status: "in_progress", design_spec: "spec" });
+      .send({ section: { status: "in_progress", design_spec: "spec" } });
 
     expect(response.status).toBe(401);
     expect(response.body.required_role).toBe("architect");
@@ -66,17 +68,17 @@ describe("requirements auth", () => {
     const response = await request(app)
       .put("/v1/requirements/REQ-1/status")
       .set(withHeaders("pm"))
-      .send({ status: "done" });
+      .send({ overall_status: "completed" });
 
     expect(response.status).toBe(200);
-    expect(response.body.status).toBe("done");
+    expect(response.body.overall_status).toBe("completed");
   });
 
   it("rejects non-pm overall status updates", async () => {
     const response = await request(app)
       .put("/v1/requirements/REQ-1/status")
       .set(withHeaders("coder"))
-      .send({ status: "done" });
+      .send({ overall_status: "completed" });
 
     expect(response.status).toBe(401);
     expect(response.body.required_role).toBe("pm");
@@ -86,7 +88,7 @@ describe("requirements auth", () => {
     const response = await request(app)
       .put("/v1/requirements/REQ-1/architecture")
       .set(withHeaders("architect"))
-      .send({ status: "invalid", design_spec: "spec" });
+      .send({ section: { status: "invalid", design_spec: "spec" } });
 
     expect(response.status).toBe(400);
     expect(response.body.error).toBe("invalid_body");
