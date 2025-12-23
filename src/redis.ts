@@ -1,5 +1,5 @@
 import { createClient, RedisClientType } from "redis";
-import { State } from "./types/state.js";
+import { Requirement, State } from "./types/state.js";
 
 const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
 
@@ -11,6 +11,69 @@ function defaultState(): State {
     schema_version: "1.0",
     updated_at: new Date().toISOString(),
     requirements: {}
+  };
+}
+
+function mapLegacyStatus(status: string | undefined): Requirement["overall_status"] {
+  switch (status) {
+    case "ready_for_pm_review":
+      return "in_review";
+    case "done":
+      return "completed";
+    case "blocked":
+      return "blocked";
+    case "open":
+    default:
+      return "not_started";
+  }
+}
+
+function normalizeRequirement(id: string, requirement: any): Requirement {
+  const reqId = requirement.req_id ?? requirement.id ?? id;
+  const title = requirement.title ?? "";
+  const priority = requirement.priority ?? { tier: "", rank: 0 };
+  const overallStatus =
+    requirement.overall_status ?? mapLegacyStatus(requirement.status ?? requirement.overallStatus);
+
+  if (requirement.sections) {
+    return {
+      req_id: reqId,
+      title,
+      priority,
+      overall_status: overallStatus,
+      sections: requirement.sections
+    } as Requirement;
+  }
+
+  return {
+    req_id: reqId,
+    title,
+    priority,
+    overall_status: overallStatus,
+    sections: {
+      pm: requirement.pm ?? { status: "unaddressed", direction: "", feedback: "", decision: "pending" },
+      architect: requirement.architecture ?? { status: "unaddressed", design_spec: "" },
+      coder: requirement.engineering ?? { status: "unaddressed", implementation_notes: "", pr: null },
+      tester: requirement.qa ?? {
+        status: "unaddressed",
+        test_plan: "",
+        test_cases: [],
+        test_results: { status: "", notes: "" }
+      }
+    }
+  };
+}
+
+function normalizeState(state: State): State {
+  const normalizedRequirements: Record<string, Requirement> = {};
+  for (const [key, value] of Object.entries(state.requirements ?? {})) {
+    normalizedRequirements[key] = normalizeRequirement(key, value);
+  }
+
+  return {
+    schema_version: "1.0",
+    updated_at: state.updated_at ?? new Date().toISOString(),
+    requirements: normalizedRequirements
   };
 }
 
@@ -70,7 +133,7 @@ export async function getState(): Promise<State> {
 
   try {
     const parsed = JSON.parse(raw) as State;
-    return parsed;
+    return normalizeState(parsed);
   } catch {
     return defaultState();
   }

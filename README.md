@@ -8,6 +8,11 @@ It is intentionally **minimal, disposable, and opinionated**.
 - **Agents operate directly in the repo** (terminal-based: Codex, Claude Code, etc.)
 - The orchestrator exists only to **maintain alignment and continuity across agents**
 
+Source of truth:
+- `REQUIREMENTS.md` = scope source of truth
+- `ORCHESTRATION_SPEC.md` = orchestrator contract source of truth
+- `prompts/` contains the system prompts for each agent role
+
 ---
 
 ## Core Purpose
@@ -75,50 +80,48 @@ Everything else (code, diffs, history) lives in Git.
       "updated_at": "ISO-8601",
       "requirements": {
         "REQ-1": {
-          "id": "REQ-1",
+          "req_id": "REQ-1",
           "title": "Short description",
           "priority": { "tier": "p0", "rank": 1 },
-          "status": "open",
-
-          "pm": {
-            "status": "unaddressed",
-            "direction": "What to build and acceptance criteria",
-            "feedback": "",
-            "decision": "pending"
-          },
-
-          "architecture": {
-            "status": "unaddressed",
-            "design_spec": "Key design decisions and constraints"
-          },
-
-          "engineering": {
-            "status": "unaddressed",
-            "implementation_notes": "What was built, what wasn't, known issues",
-            "pr": {
-              "number": 123,
-              "title": "Implement REQ-1",
-              "url": "https://github.com/...",
-              "commit": "abcd1234"
-            }
-          },
-
-          "qa": {
-            "status": "unaddressed",
-            "test_plan": "Testing approach",
-            "test_cases": [
-              {
-                "id": "TC-1",
-                "title": "Happy path",
-                "steps": "...",
-                "expected": "...",
-                "status": "pass",
-                "notes": ""
+          "overall_status": "not_started",
+          "sections": {
+            "pm": {
+              "status": "unaddressed",
+              "direction": "What to build and acceptance criteria",
+              "feedback": "",
+              "decision": "pending"
+            },
+            "architect": {
+              "status": "unaddressed",
+              "design_spec": "Key design decisions and constraints"
+            },
+            "coder": {
+              "status": "unaddressed",
+              "implementation_notes": "What was built, what wasn't, known issues",
+              "pr": {
+                "number": 123,
+                "title": "Implement REQ-1",
+                "url": "https://github.com/...",
+                "commit": "abcd1234"
               }
-            ],
-            "test_results": {
-              "status": "pass",
-              "notes": "All tests green"
+            },
+            "tester": {
+              "status": "unaddressed",
+              "test_plan": "Testing approach",
+              "test_cases": [
+                {
+                  "id": "TC-1",
+                  "title": "Happy path",
+                  "steps": "...",
+                  "expected": "...",
+                  "status": "pass",
+                  "notes": ""
+                }
+              ],
+              "test_results": {
+                "status": "pass",
+                "notes": "All tests green"
+              }
             }
           }
         }
@@ -139,10 +142,10 @@ Each agent can **only update its own section**.
 
 | Role | Writable Section |
 |----|------------------|
-| Product Manager | `pm`, `priority`, overall `status`, final decisions |
-| Architect | `architecture` |
-| Coder | `engineering` |
-| Tester | `qa` |
+| Product Manager | `sections.pm`, `priority`, `overall_status`, final decisions |
+| Architect | `sections.architect` |
+| Coder | `sections.coder` |
+| Tester | `sections.tester` |
 | System | none (reserved) |
 
 Because access is enforced at the API layer:
@@ -183,10 +186,11 @@ Section statuses:
 - `blocked`
 
 Overall requirement status (PM-only):
-- `open`
-- `ready_for_pm_review`
-- `done`
+- `not_started`
+- `in_progress`
 - `blocked`
+- `in_review`
+- `completed`
 
 ---
 

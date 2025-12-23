@@ -13,6 +13,14 @@ The orchestrator exists in part to persist these decisions so future agent runs 
 
 ---
 
+## Orchestration Spec (Authoritative for API + JSON)
+
+- `ORCHESTRATION_SPEC.md` is the authoritative API + JSON contract for agent/orchestrator interactions.
+- Agents must read it before acting.
+- No agent may guess or invent JSON shapes or endpoints.
+
+---
+
 ## Requirement Model (Authoritative)
 
 Each requirement represents a **capability slice**.
@@ -52,10 +60,11 @@ Section-level statuses (per requirement):
 - `blocked`
 
 Overall requirement status (PM-only):
-- `open` (default)
-- `ready_for_pm_review`
-- `done`
+- `not_started` (default)
+- `in_progress`
 - `blocked`
+- `in_review`
+- `completed`
 
 ---
 
@@ -97,7 +106,7 @@ This document must be treated as the authoritative shared memory across all agen
 - Entire project state is stored under a single Redis key
 - State is JSON-serializable and human-readable
 - State includes `schema_version`, `updated_at`, and `requirements` map
-- Each requirement includes per-section status fields and overall status
+- Each requirement includes per-section status fields and `overall_status`
 - State is loaded and written atomically per request
 - No partial or fragmented state storage
 
@@ -168,7 +177,7 @@ This prevents future agent runs from reinterpreting intent or scope.
 - Priority tier and rank are stored and enforced as unique
 - PM feedback can be recorded after implementation/testing
 - PM approval or rejection is explicitly captured
-- PM can set overall requirement status (`open`, `ready_for_pm_review`, `done`, `blocked`)
+- PM can set overall requirement status (`not_started`, `in_progress`, `blocked`, `in_review`, `completed`)
 - PM section status can be updated (`unaddressed`, `in_progress`, `complete`, `blocked`)
 
 ### Out of Scope
