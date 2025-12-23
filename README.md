@@ -65,7 +65,9 @@ Everything else (code, diffs, history) lives in Git.
 
 ## High-Level Architecture
 
-- **Single Redis JSON document** (`state`)
+- **Per-REQ Redis keys** (each requirement stored at `REQ-n`)
+- **Index sets and sorted sets** for listing and priority ordering
+- **Audit stream** for change history
 - **Single project**
 - **Unlimited requirements**
 - **JSON-only storage**

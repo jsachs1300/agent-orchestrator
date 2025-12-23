@@ -98,17 +98,18 @@ This requirement establishes the runnable service and foundational structure upo
 Priority: p0 / 2
 
 ### Description
-Implement a single canonical JSON document in Redis to store all orchestrator memory for the project.
+Implement canonical Redis storage for orchestrator memory using per-requirement keys and supporting indexes.
 
-This document must be treated as the authoritative shared memory across all agents.
+This storage must be treated as the authoritative shared memory across all agents.
 
 ### Acceptance Criteria
-- Entire project state is stored under a single Redis key
-- State is JSON-serializable and human-readable
-- State includes `schema_version`, `updated_at`, and `requirements` map
-- Each requirement includes per-section status fields and `overall_status`
-- State is loaded and written atomically per request
-- No partial or fragmented state storage
+- Each requirement is stored under its own Redis key (`REQ-n`)
+- Requirement values are JSON-serializable and human-readable
+- A set named `requirements` contains all requirement key names
+- A sorted set named `priority` stores requirement key names with score = tier number + rank
+- A set exists for each overall status value and contains matching requirement keys
+- All requirement changes are logged to a Redis stream (audit log)
+- Writes update requirement data and indexes atomically per request
 
 ### Out of Scope
 - Storing diffs, code, or large artifacts

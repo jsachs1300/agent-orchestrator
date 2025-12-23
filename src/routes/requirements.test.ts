@@ -1,35 +1,30 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import request from "supertest";
-import type { State } from "../types/state.js";
+import type { Requirement } from "../types/state.js";
 
 vi.mock("../redis.js", () => ({
-  getState: vi.fn(),
-  setState: vi.fn()
+  listRequirements: vi.fn(),
+  getRequirement: vi.fn(),
+  saveRequirement: vi.fn()
 }));
 
 const { default: app } = await import("../app.js");
-const { getState, setState } = await import("../redis.js");
+const { listRequirements, getRequirement, saveRequirement } = await import("../redis.js");
 
-const baseState = (): State => ({
-  schema_version: "1.0",
-  updated_at: new Date().toISOString(),
-  requirements: {
-    "REQ-1": {
-      req_id: "REQ-1",
-      title: "Requirement 1",
-      priority: { tier: "p0", rank: 1 },
-      overall_status: "not_started",
-      sections: {
-        pm: { status: "unaddressed", direction: "", feedback: "", decision: "pending" },
-        architect: { status: "unaddressed", design_spec: "" },
-        coder: { status: "unaddressed", implementation_notes: "", pr: null },
-        tester: {
-          status: "unaddressed",
-          test_plan: "",
-          test_cases: [],
-          test_results: { status: "", notes: "" }
-        }
-      }
+const baseRequirement = (): Requirement => ({
+  req_id: "REQ-1",
+  title: "Requirement 1",
+  priority: { tier: "p0", rank: 1 },
+  overall_status: "not_started",
+  sections: {
+    pm: { status: "unaddressed", direction: "", feedback: "", decision: "pending" },
+    architect: { status: "unaddressed", design_spec: "" },
+    coder: { status: "unaddressed", implementation_notes: "", pr: null },
+    tester: {
+      status: "unaddressed",
+      test_plan: "",
+      test_cases: [],
+      test_results: { status: "", notes: "" }
     }
   }
 });
@@ -45,8 +40,12 @@ const withHeaders = (role: Role) => ({
 
 describe("requirements auth", () => {
   beforeEach(() => {
-    (getState as ReturnType<typeof vi.fn>).mockImplementation(async () => baseState());
-    (setState as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+    const requirement = baseRequirement();
+    (listRequirements as ReturnType<typeof vi.fn>).mockResolvedValue({
+      [requirement.req_id]: requirement
+    });
+    (getRequirement as ReturnType<typeof vi.fn>).mockResolvedValue(requirement);
+    (saveRequirement as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
   });
 
   it("returns 401 when X-Agent-Role is missing", async () => {
@@ -86,9 +85,8 @@ describe("requirements auth", () => {
   });
 
   it("enforces role-based writes for each endpoint", async () => {
-    const cases: Array<{ role: Role; path: string; body: object; allowed: Role }> = [
+    const cases: Array<{ path: string; body: object; allowed: Role }> = [
       {
-        role: "pm",
         path: "/v1/requirements/REQ-1/pm",
         body: {
           section: { status: "in_progress", direction: "dir", feedback: "", decision: "pending" },
@@ -97,19 +95,16 @@ describe("requirements auth", () => {
         allowed: "pm"
       },
       {
-        role: "architect",
         path: "/v1/requirements/REQ-1/architecture",
         body: { section: { status: "in_progress", design_spec: "spec" } },
         allowed: "architect"
       },
       {
-        role: "coder",
         path: "/v1/requirements/REQ-1/engineering",
         body: { section: { status: "in_progress", implementation_notes: "notes", pr: null } },
         allowed: "coder"
       },
       {
-        role: "tester",
         path: "/v1/requirements/REQ-1/qa",
         body: {
           section: {
@@ -122,7 +117,6 @@ describe("requirements auth", () => {
         allowed: "tester"
       },
       {
-        role: "pm",
         path: "/v1/requirements/REQ-1/status",
         body: { overall_status: "in_progress" },
         allowed: "pm"
@@ -151,6 +145,10 @@ describe("requirements auth", () => {
         { req_id: "REQ-2", title: "Requirement 2", priority: { tier: "p1", rank: 1 } }
       ]
     };
+
+    (listRequirements as ReturnType<typeof vi.fn>).mockResolvedValue({
+      "REQ-1": baseRequirement()
+    });
 
     for (const role of roles) {
       const response = await request(app)
