@@ -1,6 +1,5 @@
 import { Router, Response } from "express";
 import { z } from "zod";
-import { getState, setState } from "../redis.js";
 import {
   architectUpdateSchema,
   coderUpdateSchema,
@@ -9,8 +8,9 @@ import {
   prioritySchema,
   testerUpdateSchema
 } from "../validators/requirements.js";
-import { Requirement, State } from "../types/state.js";
+import { Requirement } from "../types/state.js";
 import { requireRole } from "../middleware/auth.js";
+import { getRequirement, listRequirements, saveRequirement } from "../redis.js";
 
 const router = Router();
 
@@ -24,8 +24,7 @@ function isValidRequirementId(id: string): boolean {
   return requirementIdPattern.test(id);
 }
 
-function getRequirementOr404(state: State, id: string, res: Response): Requirement | null {
-  const requirement = state.requirements[id];
+function getRequirementOr404(requirement: Requirement | null, res: Response): Requirement | null {
   if (!requirement) {
     res.status(404).json({ error: "requirement_not_found" });
     return null;
@@ -53,8 +52,13 @@ function emptyRequirement(id: string, title: string, priority: Requirement["prio
   };
 }
 
-function hasPriorityConflict(state: State, id: string, tier: string, rank: number): boolean {
-  return Object.values(state.requirements).some(
+function hasPriorityConflict(
+  requirements: Record<string, Requirement>,
+  id: string,
+  tier: string,
+  rank: number
+): boolean {
+  return Object.values(requirements).some(
     (requirement) =>
       requirement.req_id !== id &&
       requirement.priority.tier === tier &&
@@ -77,18 +81,18 @@ const bulkSchema = z
   .strict();
 
 router.get("/v1/requirements", async (_req, res) => {
-  const state = await getState();
-  return res.json({ requirements: state.requirements });
+  const requirements = await listRequirements();
+  return res.json({ requirements });
 });
 
 router.get("/v1/requirements/:id", async (req, res) => {
   const id = parseId(req.params.id);
-  const state = await getState();
-  const requirement = getRequirementOr404(state, id, res);
-  if (!requirement) {
+  const requirement = await getRequirement(id);
+  const found = getRequirementOr404(requirement, res);
+  if (!found) {
     return;
   }
-  return res.json(requirement);
+  return res.json(found);
 });
 
 router.put("/v1/requirements/:id/pm", requireRole("pm"), async (req, res) => {
@@ -98,25 +102,27 @@ router.put("/v1/requirements/:id/pm", requireRole("pm"), async (req, res) => {
     return res.status(400).json({ error: "invalid_body", details: parsed.error.flatten() });
   }
 
-  const state = await getState();
-  const requirement = getRequirementOr404(state, id, res);
-  if (!requirement) {
+  const requirement = await getRequirement(id);
+  const found = getRequirementOr404(requirement, res);
+  if (!found) {
     return;
   }
 
-  requirement.sections.pm = parsed.data.section;
+  const requirements = await listRequirements();
   if (parsed.data.priority) {
-    if (hasPriorityConflict(state, id, parsed.data.priority.tier, parsed.data.priority.rank)) {
+    if (hasPriorityConflict(requirements, id, parsed.data.priority.tier, parsed.data.priority.rank)) {
       return res.status(400).json({
         error: "priority_conflict",
         message: "priority tier+rank must be unique"
       });
     }
-    requirement.priority = parsed.data.priority;
+    found.priority = parsed.data.priority;
   }
 
-  await setState(state);
-  return res.json(requirement);
+  found.sections.pm = parsed.data.section;
+
+  await saveRequirement(found, req.agent!, "update_pm", requirement);
+  return res.json(found);
 });
 
 router.put("/v1/requirements/:id/status", requireRole("pm"), async (req, res) => {
@@ -126,15 +132,15 @@ router.put("/v1/requirements/:id/status", requireRole("pm"), async (req, res) =>
     return res.status(400).json({ error: "invalid_body", details: parsed.error.flatten() });
   }
 
-  const state = await getState();
-  const requirement = getRequirementOr404(state, id, res);
-  if (!requirement) {
+  const requirement = await getRequirement(id);
+  const found = getRequirementOr404(requirement, res);
+  if (!found) {
     return;
   }
 
-  requirement.overall_status = parsed.data.overall_status;
-  await setState(state);
-  return res.json(requirement);
+  found.overall_status = parsed.data.overall_status;
+  await saveRequirement(found, req.agent!, "update_overall_status", requirement);
+  return res.json(found);
 });
 
 router.put(
@@ -147,15 +153,15 @@ router.put(
       return res.status(400).json({ error: "invalid_body", details: parsed.error.flatten() });
     }
 
-    const state = await getState();
-    const requirement = getRequirementOr404(state, id, res);
-    if (!requirement) {
+    const requirement = await getRequirement(id);
+    const found = getRequirementOr404(requirement, res);
+    if (!found) {
       return;
     }
 
-    requirement.sections.architect = parsed.data.section;
-    await setState(state);
-    return res.json(requirement);
+    found.sections.architect = parsed.data.section;
+    await saveRequirement(found, req.agent!, "update_architecture", requirement);
+    return res.json(found);
   }
 );
 
@@ -166,15 +172,15 @@ router.put("/v1/requirements/:id/engineering", requireRole("coder"), async (req,
     return res.status(400).json({ error: "invalid_body", details: parsed.error.flatten() });
   }
 
-  const state = await getState();
-  const requirement = getRequirementOr404(state, id, res);
-  if (!requirement) {
+  const requirement = await getRequirement(id);
+  const found = getRequirementOr404(requirement, res);
+  if (!found) {
     return;
   }
 
-  requirement.sections.coder = parsed.data.section;
-  await setState(state);
-  return res.json(requirement);
+  found.sections.coder = parsed.data.section;
+  await saveRequirement(found, req.agent!, "update_engineering", requirement);
+  return res.json(found);
 });
 
 router.put("/v1/requirements/:id/qa", requireRole("tester"), async (req, res) => {
@@ -184,15 +190,15 @@ router.put("/v1/requirements/:id/qa", requireRole("tester"), async (req, res) =>
     return res.status(400).json({ error: "invalid_body", details: parsed.error.flatten() });
   }
 
-  const state = await getState();
-  const requirement = getRequirementOr404(state, id, res);
-  if (!requirement) {
+  const requirement = await getRequirement(id);
+  const found = getRequirementOr404(requirement, res);
+  if (!found) {
     return;
   }
 
-  requirement.sections.tester = parsed.data.section;
-  await setState(state);
-  return res.json(requirement);
+  found.sections.tester = parsed.data.section;
+  await saveRequirement(found, req.agent!, "update_qa", requirement);
+  return res.json(found);
 });
 
 router.post("/v1/requirements/bulk", requireRole("pm"), async (req, res) => {
@@ -201,7 +207,7 @@ router.post("/v1/requirements/bulk", requireRole("pm"), async (req, res) => {
     return res.status(400).json({ error: "invalid_body", details: parsed.error.flatten() });
   }
 
-  const state = await getState();
+  const requirements = await listRequirements();
   const seenIds = new Set<string>();
   const seenPriorities = new Set<string>();
 
@@ -222,7 +228,6 @@ router.post("/v1/requirements/bulk", requireRole("pm"), async (req, res) => {
     }
     seenIds.add(normalizedId);
 
-    const existing = state.requirements[normalizedId];
     const priorityKey = `${entry.priority.tier}:${entry.priority.rank}`;
     if (seenPriorities.has(priorityKey)) {
       return res.status(400).json({
@@ -232,29 +237,27 @@ router.post("/v1/requirements/bulk", requireRole("pm"), async (req, res) => {
     }
     seenPriorities.add(priorityKey);
 
-    if (hasPriorityConflict(state, normalizedId, entry.priority.tier, entry.priority.rank)) {
+    if (hasPriorityConflict(requirements, normalizedId, entry.priority.tier, entry.priority.rank)) {
       return res.status(400).json({
         error: "priority_conflict",
         message: "priority tier+rank must be unique"
       });
     }
 
+    const existing = requirements[normalizedId];
     if (existing) {
       existing.title = entry.title;
       existing.priority = entry.priority;
-      existing.req_id = normalizedId;
+      await saveRequirement(existing, req.agent!, "bulk_update", existing);
       continue;
     }
 
-    state.requirements[normalizedId] = emptyRequirement(
-      normalizedId,
-      entry.title,
-      entry.priority
-    );
+    const created = emptyRequirement(normalizedId, entry.title, entry.priority);
+    await saveRequirement(created, req.agent!, "bulk_create", null);
+    requirements[normalizedId] = created;
   }
 
-  await setState(state);
-  return res.json({ requirements: state.requirements });
+  return res.json({ requirements });
 });
 
 export default router;
