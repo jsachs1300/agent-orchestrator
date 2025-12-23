@@ -8,6 +8,11 @@ It is intentionally **minimal, disposable, and opinionated**.
 - **Agents operate directly in the repo** (terminal-based: Codex, Claude Code, etc.)
 - The orchestrator exists only to **maintain alignment and continuity across agents**
 
+Source of truth:
+- `REQUIREMENTS.md` = scope source of truth
+- `ORCHESTRATION_SPEC.md` = orchestrator contract source of truth
+- `prompts/` contains the system prompts for each agent role
+
 ---
 
 ## Core Purpose

@@ -13,6 +13,14 @@ The orchestrator exists in part to persist these decisions so future agent runs 
 
 ---
 
+## Orchestration Spec (Authoritative for API + JSON)
+
+- `ORCHESTRATION_SPEC.md` is the authoritative API + JSON contract for agent/orchestrator interactions.
+- Agents must read it before acting.
+- No agent may guess or invent JSON shapes or endpoints.
+
+---
+
 ## Requirement Model (Authoritative)
 
 Each requirement represents a **capability slice**.
