@@ -211,7 +211,7 @@ export async function saveRequirement(
   const useJson = await detectJsonSupport(redis);
 
   if (useJson) {
-    multi.sendCommand(["JSON.SET", requirement.req_id, "$", payload]);
+    multi.addCommand(["JSON.SET", requirement.req_id, "$", payload]);
   } else {
     multi.set(requirement.req_id, payload);
   }
