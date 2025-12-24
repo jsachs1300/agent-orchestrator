@@ -1,14 +1,32 @@
 import express from "express";
 import path from "path";
-import { readFile } from "fs/promises";
+import { appendFile, mkdir, readFile } from "fs/promises";
 import requirementsRouter from "./routes/requirements.js";
 import { requireIdentity } from "./middleware/auth.js";
 
 const app = express();
 const promptsDir = path.join(process.cwd(), "prompts");
 const orchestrationSpecPath = path.join(process.cwd(), "ORCHESTRATION_SPEC.md");
+const logsDir = path.join(process.cwd(), "logs");
+const requestLogPath = path.join(logsDir, "requests.log");
+
+mkdir(logsDir, { recursive: true }).catch((err) => {
+  console.error("failed to create logs directory", err);
+});
 
 app.use(express.json({ limit: "1mb" }));
+
+app.use((req, res, next) => {
+  res.on("finish", () => {
+    const role = req.header("x-agent-role") ?? "-";
+    const agentId = req.header("x-agent-id") ?? "-";
+    const line = `${new Date().toISOString()} ${req.method} ${req.originalUrl} ${res.statusCode} role=${role} agent_id=${agentId}\n`;
+    appendFile(requestLogPath, line).catch((err) => {
+      console.error("failed to write request log", err);
+    });
+  });
+  next();
+});
 
 app.get("/health", (_req, res) => {
   res.status(200).json({ ok: true });
