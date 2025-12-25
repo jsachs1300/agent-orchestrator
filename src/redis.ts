@@ -197,6 +197,24 @@ export async function listRequirements(): Promise<Record<string, Requirement>> {
   return requirements;
 }
 
+export async function listTopRequirements(limit: number): Promise<Requirement[]> {
+  const redis = await getRedisClient();
+  await migrateLegacyStateIfPresent(redis);
+
+  const count = Number.isInteger(limit) && limit > 0 ? limit : 1;
+  const ids = await redis.zRange(PRIORITY_ZSET, 0, count - 1);
+
+  const requirements: Requirement[] = [];
+  for (const id of ids) {
+    const requirement = await getRequirement(id);
+    if (requirement) {
+      requirements.push(requirement);
+    }
+  }
+
+  return requirements;
+}
+
 export async function saveRequirement(
   requirement: Requirement,
   actor: AuditActor,

@@ -10,7 +10,7 @@ import {
 } from "../validators/requirements.js";
 import { Requirement } from "../types/state.js";
 import { requireRole } from "../middleware/auth.js";
-import { getRequirement, listRequirements, saveRequirement } from "../redis.js";
+import { getRequirement, listRequirements, listTopRequirements, saveRequirement } from "../redis.js";
 
 const router = Router();
 
@@ -82,6 +82,21 @@ const bulkSchema = z
 
 router.get("/v1/requirements", async (_req, res) => {
   const requirements = await listRequirements();
+  return res.json({ requirements });
+});
+
+router.get("/v1/requirements/top", async (_req, res) => {
+  const requirements = await listTopRequirements(1);
+  return res.json({ requirements });
+});
+
+router.get("/v1/requirements/top/:n", async (req, res) => {
+  const parsed = z.coerce.number().int().positive().safeParse(req.params.n);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "invalid_limit" });
+  }
+
+  const requirements = await listTopRequirements(parsed.data);
   return res.json({ requirements });
 });
 

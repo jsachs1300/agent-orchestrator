@@ -4,12 +4,15 @@ import type { Requirement } from "../types/state.js";
 
 vi.mock("../redis.js", () => ({
   listRequirements: vi.fn(),
+  listTopRequirements: vi.fn(),
   getRequirement: vi.fn(),
   saveRequirement: vi.fn()
 }));
 
 const { default: app } = await import("../app.js");
-const { listRequirements, getRequirement, saveRequirement } = await import("../redis.js");
+const { listRequirements, listTopRequirements, getRequirement, saveRequirement } = await import(
+  "../redis.js"
+);
 
 const baseRequirement = (): Requirement => ({
   req_id: "REQ-1",
@@ -44,6 +47,7 @@ describe("requirements auth", () => {
     (listRequirements as ReturnType<typeof vi.fn>).mockResolvedValue({
       [requirement.req_id]: requirement
     });
+    (listTopRequirements as ReturnType<typeof vi.fn>).mockResolvedValue([requirement]);
     (getRequirement as ReturnType<typeof vi.fn>).mockResolvedValue(requirement);
     (saveRequirement as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
   });
@@ -82,6 +86,22 @@ describe("requirements auth", () => {
       expect(itemResponse.status).toBe(200);
       expect(itemResponse.body.req_id).toBe("REQ-1");
     }
+  });
+
+  it("returns top requirements with optional limit", async () => {
+    const responseDefault = await request(app)
+      .get("/v1/requirements/top")
+      .set(withHeaders("pm"));
+
+    expect(responseDefault.status).toBe(200);
+    expect(responseDefault.body.requirements).toHaveLength(1);
+
+    const responseLimited = await request(app)
+      .get("/v1/requirements/top/2")
+      .set(withHeaders("pm"));
+
+    expect(responseLimited.status).toBe(200);
+    expect(responseLimited.body.requirements).toHaveLength(1);
   });
 
   it("enforces role-based writes for each endpoint", async () => {

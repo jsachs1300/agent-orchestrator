@@ -272,6 +272,24 @@ Allow Product Management to review completed work and either approve it or provi
 
 ---
 
+## REQ-10: Priority-Ordered Listing
+
+Priority: p2 / 1
+
+### Description
+Expose a read endpoint that returns requirements ordered by priority using the Redis priority index.
+
+### Acceptance Criteria
+- `GET /v1/requirements/top` returns the top priority requirement
+- `GET /v1/requirements/top/{n}` returns the top N requirements ordered by priority
+- Invalid limits return a deterministic 400 response
+
+### Out of Scope
+- Cursor-based pagination
+- Filtering by status
+
+---
+
 ## Non-Goals (Global)
 
 The system is explicitly NOT intended to:

@@ -162,6 +162,8 @@ Because access is enforced at the API layer:
 - `GET /health`
 - `GET /prompt/{name}` (public prompt files, e.g. `prompt/pm_system_prompt`)
 - `GET /v1/requirements`
+- `GET /v1/requirements/top`
+- `GET /v1/requirements/top/{n}`
 - `GET /v1/requirements/{id}`
 
 ### Write (replace-only, role-scoped)
@@ -193,6 +195,13 @@ curl http://localhost:3000/prompt/pm_system_prompt
 Get all requirements (headers required):
 ```bash
 curl http://localhost:3000/v1/requirements \\
+  -H "X-Agent-Role: pm" \\
+  -H "X-Agent-Id: pm-1"
+```
+
+Get top requirements by priority:
+```bash
+curl http://localhost:3000/v1/requirements/top/3 \\
   -H "X-Agent-Role: pm" \\
   -H "X-Agent-Id: pm-1"
 ```
