@@ -9,10 +9,17 @@ const promptsDir = path.join(process.cwd(), "prompts");
 const orchestrationSpecPath = path.join(process.cwd(), "ORCHESTRATION_SPEC.md");
 const logsDir = path.join(process.cwd(), "logs");
 const requestLogPath = path.join(logsDir, "requests.log");
+let logDirReady: Promise<void> | null = null;
 
-mkdir(logsDir, { recursive: true }).catch((err) => {
-  console.error("failed to create logs directory", err);
-});
+function ensureLogDir() {
+  if (!logDirReady) {
+    logDirReady = mkdir(logsDir, { recursive: true }).catch((err) => {
+      logDirReady = null;
+      console.error("failed to create logs directory", err);
+    });
+  }
+  return logDirReady;
+}
 
 app.use(express.json({ limit: "1mb" }));
 
@@ -21,9 +28,11 @@ app.use((req, res, next) => {
     const role = req.header("x-agent-role") ?? "-";
     const agentId = req.header("x-agent-id") ?? "-";
     const line = `${new Date().toISOString()} ${req.method} ${req.originalUrl} ${res.statusCode} role=${role} agent_id=${agentId}\n`;
-    appendFile(requestLogPath, line).catch((err) => {
-      console.error("failed to write request log", err);
-    });
+    ensureLogDir()
+      ?.then(() => appendFile(requestLogPath, line))
+      .catch((err) => {
+        console.error("failed to write request log", err);
+      });
   });
   next();
 });

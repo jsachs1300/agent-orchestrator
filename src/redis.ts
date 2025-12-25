@@ -197,6 +197,66 @@ export async function listRequirements(): Promise<Record<string, Requirement>> {
   return requirements;
 }
 
+export async function listTopRequirements(limit: number): Promise<Requirement[]> {
+  const redis = await getRedisClient();
+  await migrateLegacyStateIfPresent(redis);
+
+  const count = Number.isInteger(limit) && limit > 0 ? limit : 1;
+  const ids = await redis.zRange(PRIORITY_ZSET, 0, count - 1);
+
+  const requirements: Requirement[] = [];
+  for (const id of ids) {
+    const requirement = await getRequirement(id);
+    if (requirement) {
+      requirements.push(requirement);
+    }
+  }
+
+  return requirements;
+}
+
+export async function listRequirementsByStatus(status: Requirement["overall_status"]): Promise<Requirement[]> {
+  const redis = await getRedisClient();
+  await migrateLegacyStateIfPresent(redis);
+
+  const ids = await redis.sMembers(status);
+  const requirements: Requirement[] = [];
+  for (const id of ids) {
+    const requirement = await getRequirement(id);
+    if (requirement) {
+      requirements.push(requirement);
+    }
+  }
+
+  return requirements;
+}
+
+export async function listRequirementsByPriorityRange(
+  minScore: number,
+  maxScore: number
+): Promise<Requirement[]> {
+  const redis = await getRedisClient();
+  await migrateLegacyStateIfPresent(redis);
+
+  const ids = await redis.zRangeByScore(PRIORITY_ZSET, minScore, maxScore);
+  const requirements: Requirement[] = [];
+  for (const id of ids) {
+    const requirement = await getRequirement(id);
+    if (requirement) {
+      requirements.push(requirement);
+    }
+  }
+
+  return requirements;
+}
+
+export async function listAuditEntries(limit: number) {
+  const redis = await getRedisClient();
+  const count = Number.isInteger(limit) && limit > 0 ? limit : 100;
+  const entries = await redis.xRevRange(AUDIT_STREAM, "+", "-", { COUNT: count });
+  return entries.map((entry) => ({ id: entry.id, fields: entry.message }));
+}
+
 export async function saveRequirement(
   requirement: Requirement,
   actor: AuditActor,

@@ -272,6 +272,60 @@ Allow Product Management to review completed work and either approve it or provi
 
 ---
 
+## REQ-10: Priority-Ordered Listing
+
+Priority: p2 / 1
+
+### Description
+Expose a read endpoint that returns requirements ordered by priority using the Redis priority index.
+
+### Acceptance Criteria
+- `GET /v1/requirements/top` returns the top priority requirement
+- `GET /v1/requirements/top/{n}` returns the top N requirements ordered by priority
+- Invalid limits return a deterministic 400 response
+
+### Out of Scope
+- Cursor-based pagination
+- Filtering by status
+
+---
+
+## REQ-11: Status and Priority Index Reads
+
+Priority: p2 / 2
+
+### Description
+Expose read endpoints that leverage Redis status sets and priority range queries.
+
+### Acceptance Criteria
+- `GET /v1/requirements/status/{status}` returns requirements with that overall status
+- `GET /v1/requirements/priority-range?min={min}&max={max}` returns requirements within score range
+- Invalid status or ranges return a deterministic 400 response
+
+### Out of Scope
+- Full-text search
+- Complex sorting beyond index order
+
+---
+
+## REQ-12: Audit Log Read Access
+
+Priority: p2 / 3
+
+### Description
+Expose a read endpoint for the Redis audit stream to support operational debugging.
+
+### Acceptance Criteria
+- `GET /v1/audit` returns the most recent audit entries
+- Optional `limit` query parameter bounds returned entries
+- Invalid limits return a deterministic 400 response
+
+### Out of Scope
+- Stream trimming or retention policies
+- Filtering by actor or action
+
+---
+
 ## Non-Goals (Global)
 
 The system is explicitly NOT intended to:
