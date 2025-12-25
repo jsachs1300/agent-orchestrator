@@ -106,16 +106,28 @@ All endpoints are JSON. Unknown fields in requests MUST be rejected with 400.
 	•	GET /v1/requirements/top/{n}
 	•	Response: { “requirements”: [REQ, ...] }
 
-4.3 Get one REQ
+4.3 Get requirements by status
+	•	GET /v1/requirements/status/{status}
+	•	Response: { “requirements”: [REQ, ...] }
+
+4.4 Get requirements by priority range
+	•	GET /v1/requirements/priority-range?min={min}&max={max}
+	•	Response: { “requirements”: [REQ, ...] }
+
+4.5 Get audit log
+	•	GET /v1/audit?limit={n}
+	•	Response: { “entries”: [ { “id”: “...”, “fields”: { ... } } ] }
+
+4.6 Get one REQ
 	•	GET /v1/requirements/{req_id}
 	•	Response: REQ
 
-4.4 Create REQ (PM only)
+4.7 Create REQ (PM only)
 	•	POST /v1/requirements/bulk
 	•	Body: { “requirements”: [ { “req_id”: “REQ-001”, “title”: “...”, “priority”: { “tier”: “p0”, “rank”: 1 } } ] }
 	•	Orchestrator will fill missing sections with defaults.
 
-4.5 Update REQ sections (role-scoped)
+4.8 Update REQ sections (role-scoped)
 	•	PUT /v1/requirements/{req_id}/pm
 	•	PUT /v1/requirements/{req_id}/architecture
 	•	PUT /v1/requirements/{req_id}/engineering
@@ -159,7 +171,7 @@ Rules:
 
 Unauthorized paths MUST return 401.
 
-4.6 Validation / Health
+4.9 Validation / Health
 	•	GET /health
 	•	Response: { “ok”: true }
 

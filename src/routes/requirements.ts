@@ -10,7 +10,15 @@ import {
 } from "../validators/requirements.js";
 import { Requirement } from "../types/state.js";
 import { requireRole } from "../middleware/auth.js";
-import { getRequirement, listRequirements, listTopRequirements, saveRequirement } from "../redis.js";
+import {
+  getRequirement,
+  listAuditEntries,
+  listRequirements,
+  listRequirementsByPriorityRange,
+  listRequirementsByStatus,
+  listTopRequirements,
+  saveRequirement
+} from "../redis.js";
 
 const router = Router();
 
@@ -98,6 +106,46 @@ router.get("/v1/requirements/top/:n", async (req, res) => {
 
   const requirements = await listTopRequirements(parsed.data);
   return res.json({ requirements });
+});
+
+router.get("/v1/requirements/status/:status", async (req, res) => {
+  const status = req.params.status;
+  const allowed = [
+    "not_started",
+    "in_progress",
+    "blocked",
+    "in_review",
+    "completed"
+  ] as const;
+
+  if (!allowed.includes(status as Requirement["overall_status"])) {
+    return res.status(400).json({ error: "invalid_status" });
+  }
+
+  const requirements = await listRequirementsByStatus(status as Requirement["overall_status"]);
+  return res.json({ requirements });
+});
+
+router.get("/v1/requirements/priority-range", async (req, res) => {
+  const min = z.coerce.number().int().safeParse(req.query.min);
+  const max = z.coerce.number().int().safeParse(req.query.max);
+
+  if (!min.success || !max.success) {
+    return res.status(400).json({ error: "invalid_range" });
+  }
+
+  const requirements = await listRequirementsByPriorityRange(min.data, max.data);
+  return res.json({ requirements });
+});
+
+router.get("/v1/audit", async (req, res) => {
+  const parsed = z.coerce.number().int().positive().safeParse(req.query.limit ?? "100");
+  if (!parsed.success) {
+    return res.status(400).json({ error: "invalid_limit" });
+  }
+
+  const entries = await listAuditEntries(parsed.data);
+  return res.json({ entries });
 });
 
 router.get("/v1/requirements/:id", async (req, res) => {
