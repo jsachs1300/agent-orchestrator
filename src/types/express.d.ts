@@ -1,13 +1,11 @@
-import { Role } from "./state.js";
+import type { Role } from "./state.js";
 
-declare global {
-  namespace Express {
-    interface Request {
-      agent?: {
-        role: Role;
-        id: string;
-      };
-    }
+declare module "express-serve-static-core" {
+  interface Request {
+    agent?: {
+      role: Role;
+      id: string;
+    };
   }
 }
 
