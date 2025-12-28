@@ -1,8 +1,7 @@
 import express from "express";
 import path from "path";
 import { appendFile, mkdir, readFile } from "fs/promises";
-import requirementsRouter from "./routes/requirements.js";
-import { requireIdentity } from "./middleware/auth.js";
+import requirementsV2Router from "./routes/requirements-v2.js";
 
 const app = express();
 const promptsDir = path.join(process.cwd(), "prompts");
@@ -13,10 +12,12 @@ let logDirReady: Promise<void> | null = null;
 
 function ensureLogDir() {
   if (!logDirReady) {
-    logDirReady = mkdir(logsDir, { recursive: true }).catch((err) => {
-      logDirReady = null;
-      console.error("failed to create logs directory", err);
-    });
+    logDirReady = mkdir(logsDir, { recursive: true })
+      .then(() => undefined)
+      .catch((err) => {
+        logDirReady = null;
+        console.error("failed to create logs directory", err);
+      });
   }
   return logDirReady;
 }
@@ -68,8 +69,7 @@ app.get("/prompt/:name", async (req, res) => {
     return res.status(500).json({ error: "prompt_read_failed" });
   }
 });
-app.use(requireIdentity);
-app.use(requirementsRouter);
+app.use(requirementsV2Router);
 
 app.use((req, res) => {
   res.status(404).json({ error: "not_found" });

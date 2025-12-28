@@ -118,7 +118,7 @@ router.get("/v1/requirements/status/:status", async (req, res) => {
     "completed"
   ] as const;
 
-  if (!allowed.includes(status as Requirement["overall_status"])) {
+  if (!allowed.includes(status as (typeof allowed)[number])) {
     return res.status(400).json({ error: "invalid_status" });
   }
 
