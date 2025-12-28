@@ -22,8 +22,8 @@ const coderHeaders = {
   "x-agent-id": "agent-2"
 };
 
-beforeEach(() => {
-  clearRequirementsStore();
+beforeEach(async () => {
+  await clearRequirementsStore();
 });
 
 describe("v2 requirements endpoints", () => {

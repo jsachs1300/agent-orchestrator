@@ -1,18 +1,40 @@
+import { getRedisClient } from "../redis.js";
 import { RequirementV2 } from "../types/requirements-v2.js";
 
-const requirements = new Map<string, RequirementV2>();
+const REQUIREMENTS_SET = "v2:requirements";
+const REQUIREMENT_PREFIX = "v2:requirement:";
 
-export function clearRequirementsStore() {
-  requirements.clear();
+function requirementKey(reqId: string) {
+  return `${REQUIREMENT_PREFIX}${reqId}`;
 }
 
-export function getRequirement(reqId: string): RequirementV2 | null {
-  return requirements.get(reqId) ?? null;
+export async function clearRequirementsStore() {
+  const redis = await getRedisClient();
+  const ids = await redis.sMembers(REQUIREMENTS_SET);
+  const keys = ids.map((id) => requirementKey(id));
+
+  const multi = redis.multi();
+  multi.del(REQUIREMENTS_SET, ...keys);
+  await multi.exec();
 }
 
-export function bulkCreateRequirements(
+export async function getRequirement(reqId: string): Promise<RequirementV2 | null> {
+  const redis = await getRedisClient();
+  const raw = await redis.get(requirementKey(reqId));
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(raw) as RequirementV2;
+  } catch {
+    return null;
+  }
+}
+
+export async function bulkCreateRequirements(
   items: RequirementV2[]
-): { ok: true } | { ok: false; duplicates: string[] } {
+): Promise<{ ok: true } | { ok: false; duplicates: string[] }> {
   const duplicates = new Set<string>();
   const seen = new Set<string>();
 
@@ -21,8 +43,26 @@ export function bulkCreateRequirements(
       duplicates.add(item.req_id);
     }
     seen.add(item.req_id);
-    if (requirements.has(item.req_id)) {
-      duplicates.add(item.req_id);
+  }
+
+  if (duplicates.size > 0) {
+    return { ok: false, duplicates: Array.from(duplicates) };
+  }
+
+  const redis = await getRedisClient();
+  const ids = Array.from(seen);
+  if (ids.length > 0) {
+    const multi = redis.multi();
+    for (const id of ids) {
+      multi.sIsMember(REQUIREMENTS_SET, id);
+    }
+    const results = await multi.exec();
+    if (results) {
+      results.forEach((result, index) => {
+        if (result === 1) {
+          duplicates.add(ids[index]);
+        }
+      });
     }
   }
 
@@ -30,9 +70,12 @@ export function bulkCreateRequirements(
     return { ok: false, duplicates: Array.from(duplicates) };
   }
 
+  const multi = redis.multi();
   for (const item of items) {
-    requirements.set(item.req_id, item);
+    multi.set(requirementKey(item.req_id), JSON.stringify(item));
+    multi.sAdd(REQUIREMENTS_SET, item.req_id);
   }
+  await multi.exec();
 
   return { ok: true };
 }
