@@ -1,4 +1,5 @@
 export type SliceOwnerRole = "pm" | "architect" | "coder" | "tester";
+export type NextSliceRole = Exclude<SliceOwnerRole, "pm">;
 
 export type SliceStatus = "not_started" | "in_progress" | "done" | "blocked";
 
