@@ -12,10 +12,10 @@ import { SliceV2 } from "../types/slices-v2.js";
 import {
   bulkCreateSlices,
   getSlice,
-  listSlicesInOrder,
   saveSlice
 } from "../store/slices-store.js";
 import { requireRole, requireV2Identity } from "../middleware/v2-auth.js";
+import { findNextSlice } from "../store/next-slice.js";
 
 const router = Router();
 
@@ -62,34 +62,7 @@ router.get("/v1/slices/next", async (req, res) => {
     return res.status(400).json({ error: "invalid_role" });
   }
 
-  const slices = await listSlicesInOrder();
-  if (slices.length === 0) {
-    return res.status(404).json({ error: "not_found" });
-  }
-
-  const sliceMap = new Map(slices.map((slice) => [slice.slice_id, slice]));
-  const nextSlice = slices.find((slice) => {
-    if (slice.owner_role !== parsedRole.data) {
-      return false;
-    }
-    if (slice.claimed_by) {
-      return false;
-    }
-    if (slice.status === "done") {
-      return false;
-    }
-    if (slice.depends_on && slice.depends_on.length > 0) {
-      const dependenciesReady = slice.depends_on.every((dependency) => {
-        const dependencySlice = sliceMap.get(dependency);
-        return dependencySlice?.status === "done";
-      });
-      if (!dependenciesReady) {
-        return false;
-      }
-    }
-    return true;
-  });
-
+  const nextSlice = await findNextSlice(parsedRole.data);
   if (!nextSlice) {
     return res.status(404).json({ error: "not_found" });
   }
