@@ -32,6 +32,12 @@ export async function getSlice(sliceId: string): Promise<SliceV2 | null> {
   }
 }
 
+export async function saveSlice(slice: SliceV2): Promise<void> {
+  const redis = await getRedisClient();
+  await redis.set(sliceKey(slice.slice_id), JSON.stringify(slice));
+  await redis.sAdd(SLICES_SET, slice.slice_id);
+}
+
 export async function bulkCreateSlices(
   items: SliceV2[]
 ): Promise<{ ok: true } | { ok: false; duplicates: string[] }> {
