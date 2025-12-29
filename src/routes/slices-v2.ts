@@ -5,6 +5,7 @@ import {
   emptyBodySchema,
   implementationPatchSchema,
   nextSliceRoleSchema,
+  statusPatchSchema,
   testsPatchSchema
 } from "../validators/slices-v2.js";
 import { SliceV2 } from "../types/slices-v2.js";
@@ -156,6 +157,31 @@ router.post("/v1/slices/:slice_id/release", async (req, res) => {
 
   slice.claimed_by = null;
   slice.claimed_at = null;
+
+  await saveSlice(slice);
+  return res.status(200).json(slice);
+});
+
+router.patch("/v1/slices/:slice_id/status", requireRole("pm"), async (req, res) => {
+  const parsed = statusPatchSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "invalid_body" });
+  }
+
+  const sliceId = String(req.params.slice_id || "").trim();
+  const slice = sliceId ? await getSlice(sliceId) : null;
+  if (!slice) {
+    return res.status(404).json({ error: "not_found" });
+  }
+
+  if (parsed.data.status === "done") {
+    const testResults = slice.deliverables.tester.test_results;
+    if (!testResults || testResults.status !== "pass") {
+      return res.status(409).json({ error: "cannot_mark_done" });
+    }
+  }
+
+  slice.status = parsed.data.status;
 
   await saveSlice(slice);
   return res.status(200).json(slice);

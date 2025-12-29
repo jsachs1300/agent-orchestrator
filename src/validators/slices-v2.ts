@@ -61,6 +61,19 @@ export const testResultsSchema = z
   })
   .strict();
 
+export const sliceStatusSchema = z.enum([
+  "not_started",
+  "in_progress",
+  "blocked",
+  "done"
+]);
+
+export const statusPatchSchema = z
+  .object({
+    status: sliceStatusSchema
+  })
+  .strict();
+
 export const testsPatchSchema = z
   .object({
     test_plan: nonEmptyString.optional(),
