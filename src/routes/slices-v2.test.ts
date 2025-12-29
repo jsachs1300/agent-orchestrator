@@ -687,6 +687,98 @@ describe("v2 slices endpoints", () => {
     expect(releaseResponse.body.claimed_at).toBeNull();
   });
 
+  it("returns 401 when headers are missing on status updates", async () => {
+    const response = await request(app)
+      .patch("/v1/slices/SLICE-1/status")
+      .send({ status: "in_progress" });
+
+    expect(response.status).toBe(401);
+    expect(response.body).toEqual({ error: "unauthorized" });
+  });
+
+  it("returns 401 for non-pm role on status updates", async () => {
+    const response = await request(app)
+      .patch("/v1/slices/SLICE-1/status")
+      .set(coderHeaders)
+      .send({ status: "in_progress" });
+
+    expect(response.status).toBe(401);
+    expect(response.body).toEqual({ error: "unauthorized" });
+  });
+
+  it("returns 400 for unknown fields in status updates", async () => {
+    await createSlice();
+
+    const response = await request(app)
+      .patch("/v1/slices/SLICE-1/status")
+      .set(pmHeaders)
+      .send({ status: "in_progress", extra: "nope" });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({ error: "invalid_body" });
+  });
+
+  it("returns 400 for invalid status in status updates", async () => {
+    await createSlice();
+
+    const response = await request(app)
+      .patch("/v1/slices/SLICE-1/status")
+      .set(pmHeaders)
+      .send({ status: "paused" });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({ error: "invalid_body" });
+  });
+
+  it("returns 404 when status updating a missing slice", async () => {
+    const response = await request(app)
+      .patch("/v1/slices/SLICE-404/status")
+      .set(pmHeaders)
+      .send({ status: "in_progress" });
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({ error: "not_found" });
+  });
+
+  it("updates status for pm", async () => {
+    await createSlice();
+
+    const response = await request(app)
+      .patch("/v1/slices/SLICE-1/status")
+      .set(pmHeaders)
+      .send({ status: "in_progress" });
+
+    expect(response.status).toBe(200);
+    expect(response.body.status).toBe("in_progress");
+  });
+
+  it("returns 409 when marking done without passing test results", async () => {
+    await createSlice();
+
+    const missingResults = await request(app)
+      .patch("/v1/slices/SLICE-1/status")
+      .set(pmHeaders)
+      .send({ status: "done" });
+
+    expect(missingResults.status).toBe(409);
+    expect(missingResults.body).toEqual({ error: "cannot_mark_done" });
+
+    const slice = await getSlice("SLICE-1");
+    if (!slice) {
+      throw new Error("missing slice");
+    }
+    slice.deliverables.tester.test_results = { status: "fail", notes: "nope" };
+    await saveSlice(slice);
+
+    const failingResults = await request(app)
+      .patch("/v1/slices/SLICE-1/status")
+      .set(pmHeaders)
+      .send({ status: "done" });
+
+    expect(failingResults.status).toBe(409);
+    expect(failingResults.body).toEqual({ error: "cannot_mark_done" });
+  });
+
   it("returns 400 for invalid next role", async () => {
     const response = await request(app)
       .get("/v1/slices/next")
