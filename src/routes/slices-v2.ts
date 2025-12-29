@@ -36,10 +36,11 @@ router.post("/v1/slices/bulk", requireRole("pm"), async (req, res) => {
     claimed_at: null,
     depends_on: item.depends_on,
     deliverables: {
-      architect: { design_spec: null, evidence: [] },
-      coder: { implementation_notes: null, pr: null, evidence: [] },
-      tester: { test_plan: null, test_results: null, evidence: [] }
-    }
+      architect: { design_spec: null },
+      coder: { implementation_notes: null, pr: null },
+      tester: { test_plan: null, test_results: null }
+    },
+    evidence: []
   }));
 
   const result = await bulkCreateSlices(slices);
@@ -178,12 +179,7 @@ router.patch("/v1/slices/:slice_id/design", requireRole("architect"), async (req
   };
 
   if (parsed.data.evidence) {
-    const author = { role: req.agent!.role, id: req.agent!.id };
-    const existingEvidence = slice.deliverables.architect.evidence ?? [];
-    slice.deliverables.architect.evidence = [
-      ...existingEvidence,
-      ...parsed.data.evidence.map((entry) => ({ ...entry, author }))
-    ];
+    slice.evidence = [...slice.evidence, ...parsed.data.evidence];
   }
 
   await saveSlice(slice);
@@ -217,12 +213,7 @@ router.patch("/v1/slices/:slice_id/implementation", requireRole("coder"), async 
   }
 
   if (parsed.data.evidence) {
-    const author = { role: req.agent!.role, id: req.agent!.id };
-    const existingEvidence = slice.deliverables.coder.evidence ?? [];
-    slice.deliverables.coder.evidence = [
-      ...existingEvidence,
-      ...parsed.data.evidence.map((entry) => ({ ...entry, author }))
-    ];
+    slice.evidence = [...slice.evidence, ...parsed.data.evidence];
   }
 
   await saveSlice(slice);
@@ -256,12 +247,7 @@ router.patch("/v1/slices/:slice_id/tests", requireRole("tester"), async (req, re
   }
 
   if (parsed.data.evidence) {
-    const author = { role: req.agent!.role, id: req.agent!.id };
-    const existingEvidence = slice.deliverables.tester.evidence ?? [];
-    slice.deliverables.tester.evidence = [
-      ...existingEvidence,
-      ...parsed.data.evidence.map((entry) => ({ ...entry, author }))
-    ];
+    slice.evidence = [...slice.evidence, ...parsed.data.evidence];
   }
 
   await saveSlice(slice);
