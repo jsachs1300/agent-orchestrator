@@ -197,10 +197,17 @@ Agents NEVER receive global state.
 - `PATCH /v1/slices/{slice_id}/implementation`
 - `PATCH /v1/slices/{slice_id}/tests`
 
-Each PATCH:
-- May append evidence
-- May update slice status
-- Must not overwrite other roles' sections
+Role-Scoped Deliverables PATCH Semantics
+
+Role-scoped PATCH endpoints (`/design`, `/implementation`, `/tests`) are restricted to
+updating only the deliverables owned by the calling role.
+
+- Role PATCH endpoints MUST NOT update `slice.status`.
+- Any request payload including `status` MUST be rejected with `400`.
+- `slice.status` is PM-owned and may only be updated via PM-authorized operations.
+
+This restriction is intentional to preserve deterministic lifecycle control and
+prevent cross-role state advancement.
 
 ### 6.4 Views
 - `GET /v1/views/slice/{slice_id}`
