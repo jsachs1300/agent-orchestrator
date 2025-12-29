@@ -5,11 +5,33 @@ import {
   bulkCreateRequirements,
   getRequirement
 } from "../store/requirements-store.js";
+import { listSlicesByRequirement } from "../store/slices-store.js";
+import { SliceStatus } from "../types/slices-v2.js";
 import { requireRole, requireV2Identity } from "../middleware/v2-auth.js";
 
 const router = Router();
 
 router.use(requireV2Identity);
+
+function deriveRequirementStatus(statuses: SliceStatus[]): RequirementV2["status"] {
+  if (statuses.length === 0) {
+    return "derived";
+  }
+
+  if (statuses.every((status) => status === "done")) {
+    return "completed";
+  }
+
+  if (statuses.some((status) => status === "blocked")) {
+    return "blocked";
+  }
+
+  if (statuses.some((status) => status === "in_progress" || status === "done")) {
+    return "in_progress";
+  }
+
+  return "not_started";
+}
 
 router.post("/v1/requirements/bulk", requireRole("pm"), async (req, res) => {
   const parsed = bulkRequirementsSchema.safeParse(req.body);
@@ -47,7 +69,10 @@ router.get("/v1/requirements/:req_id", async (req, res) => {
     return res.status(404).json({ error: "requirement_not_found" });
   }
 
-  return res.status(200).json(requirement);
+  const slices = await listSlicesByRequirement(reqId);
+  const status = deriveRequirementStatus(slices.map((slice) => slice.status));
+
+  return res.status(200).json({ ...requirement, status });
 });
 
 export default router;

@@ -121,3 +121,8 @@ export async function listSlicesInOrder(): Promise<SliceV2[]> {
 
   return slices;
 }
+
+export async function listSlicesByRequirement(reqId: string): Promise<SliceV2[]> {
+  const slices = await listSlicesInOrder();
+  return slices.filter((slice) => slice.req_id === reqId);
+}
