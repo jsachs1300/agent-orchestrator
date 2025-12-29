@@ -29,7 +29,7 @@ router.post("/v1/slices/bulk", requireRole("pm"), async (req, res) => {
     evidence: []
   }));
 
-  const result = bulkCreateSlices(slices);
+  const result = await bulkCreateSlices(slices);
   if (!result.ok) {
     return res.status(409).json({
       error: "slice_exists",
@@ -42,7 +42,7 @@ router.post("/v1/slices/bulk", requireRole("pm"), async (req, res) => {
 
 router.get("/v1/slices/:slice_id", async (req, res) => {
   const sliceId = String(req.params.slice_id || "").trim();
-  const slice = sliceId ? getSlice(sliceId) : null;
+  const slice = sliceId ? await getSlice(sliceId) : null;
 
   if (!slice) {
     return res.status(404).json({ error: "not_found" });

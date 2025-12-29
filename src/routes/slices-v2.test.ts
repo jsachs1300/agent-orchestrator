@@ -31,8 +31,8 @@ const defaultSliceResponse = {
   evidence: []
 };
 
-beforeEach(() => {
-  clearSlicesStore();
+beforeEach(async () => {
+  await clearSlicesStore();
 });
 
 describe("v2 slices endpoints", () => {

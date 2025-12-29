@@ -1,18 +1,40 @@
+import { getRedisClient } from "../redis.js";
 import { SliceV2 } from "../types/slices-v2.js";
 
-const slices = new Map<string, SliceV2>();
+const SLICES_SET = "v2:slices";
+const SLICE_PREFIX = "v2:slice:";
 
-export function clearSlicesStore() {
-  slices.clear();
+function sliceKey(sliceId: string) {
+  return `${SLICE_PREFIX}${sliceId}`;
 }
 
-export function getSlice(sliceId: string): SliceV2 | null {
-  return slices.get(sliceId) ?? null;
+export async function clearSlicesStore() {
+  const redis = await getRedisClient();
+  const ids = await redis.sMembers(SLICES_SET);
+  const keys = ids.map((id) => sliceKey(id));
+
+  const multi = redis.multi();
+  multi.del(SLICES_SET, ...keys);
+  await multi.exec();
 }
 
-export function bulkCreateSlices(
+export async function getSlice(sliceId: string): Promise<SliceV2 | null> {
+  const redis = await getRedisClient();
+  const raw = await redis.get(sliceKey(sliceId));
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(raw) as SliceV2;
+  } catch {
+    return null;
+  }
+}
+
+export async function bulkCreateSlices(
   items: SliceV2[]
-): { ok: true } | { ok: false; duplicates: string[] } {
+): Promise<{ ok: true } | { ok: false; duplicates: string[] }> {
   const duplicates = new Set<string>();
   const seen = new Set<string>();
 
@@ -27,9 +49,20 @@ export function bulkCreateSlices(
     return { ok: false, duplicates: Array.from(duplicates) };
   }
 
-  for (const id of seen) {
-    if (slices.has(id)) {
-      duplicates.add(id);
+  const redis = await getRedisClient();
+  const ids = Array.from(seen);
+  if (ids.length > 0) {
+    const multi = redis.multi();
+    for (const id of ids) {
+      multi.sIsMember(SLICES_SET, id);
+    }
+    const results = await multi.exec();
+    if (results) {
+      results.forEach((result, index) => {
+        if (result === 1) {
+          duplicates.add(ids[index]);
+        }
+      });
     }
   }
 
@@ -37,9 +70,12 @@ export function bulkCreateSlices(
     return { ok: false, duplicates: Array.from(duplicates) };
   }
 
+  const multi = redis.multi();
   for (const item of items) {
-    slices.set(item.slice_id, item);
+    multi.set(sliceKey(item.slice_id), JSON.stringify(item));
+    multi.sAdd(SLICES_SET, item.slice_id);
   }
+  await multi.exec();
 
   return { ok: true };
 }
