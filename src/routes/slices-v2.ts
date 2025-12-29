@@ -2,11 +2,18 @@ import { Router } from "express";
 import {
   bulkSlicesSchema,
   designPatchSchema,
+  emptyBodySchema,
   implementationPatchSchema,
+  nextSliceRoleSchema,
   testsPatchSchema
 } from "../validators/slices-v2.js";
 import { SliceV2 } from "../types/slices-v2.js";
-import { bulkCreateSlices, getSlice, saveSlice } from "../store/slices-store.js";
+import {
+  bulkCreateSlices,
+  getSlice,
+  listSlicesInOrder,
+  saveSlice
+} from "../store/slices-store.js";
 import { requireRole, requireV2Identity } from "../middleware/v2-auth.js";
 
 const router = Router();
@@ -25,6 +32,8 @@ router.post("/v1/slices/bulk", requireRole("pm"), async (req, res) => {
     title: item.title,
     owner_role: item.owner_role,
     status: "not_started",
+    claimed_by: null,
+    claimed_at: null,
     depends_on: item.depends_on,
     deliverables: {
       architect: { design_spec: null, evidence: [] },
@@ -44,6 +53,48 @@ router.post("/v1/slices/bulk", requireRole("pm"), async (req, res) => {
   return res.status(201).json({ slices });
 });
 
+router.get("/v1/slices/next", async (req, res) => {
+  const roleInput = typeof req.query.role === "string" ? req.query.role : "";
+  const parsedRole = nextSliceRoleSchema.safeParse(roleInput);
+  if (!parsedRole.success) {
+    return res.status(400).json({ error: "invalid_role" });
+  }
+
+  const slices = await listSlicesInOrder();
+  if (slices.length === 0) {
+    return res.status(404).json({ error: "not_found" });
+  }
+
+  const sliceMap = new Map(slices.map((slice) => [slice.slice_id, slice]));
+  const nextSlice = slices.find((slice) => {
+    if (slice.owner_role !== parsedRole.data) {
+      return false;
+    }
+    if (slice.claimed_by) {
+      return false;
+    }
+    if (slice.status === "done") {
+      return false;
+    }
+    if (slice.depends_on && slice.depends_on.length > 0) {
+      const dependenciesReady = slice.depends_on.every((dependency) => {
+        const dependencySlice = sliceMap.get(dependency);
+        return dependencySlice?.status === "done";
+      });
+      if (!dependenciesReady) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  if (!nextSlice) {
+    return res.status(404).json({ error: "not_found" });
+  }
+
+  return res.status(200).json(nextSlice);
+});
+
 router.get("/v1/slices/:slice_id", async (req, res) => {
   const sliceId = String(req.params.slice_id || "").trim();
   const slice = sliceId ? await getSlice(sliceId) : null;
@@ -52,6 +103,60 @@ router.get("/v1/slices/:slice_id", async (req, res) => {
     return res.status(404).json({ error: "not_found" });
   }
 
+  return res.status(200).json(slice);
+});
+
+router.post("/v1/slices/:slice_id/claim", async (req, res) => {
+  const parsedBody = emptyBodySchema.safeParse(req.body ?? {});
+  if (!parsedBody.success) {
+    return res.status(400).json({ error: "invalid_body" });
+  }
+
+  const sliceId = String(req.params.slice_id || "").trim();
+  const slice = sliceId ? await getSlice(sliceId) : null;
+  if (!slice) {
+    return res.status(404).json({ error: "not_found" });
+  }
+
+  if (slice.claimed_by) {
+    return res.status(409).json({ error: "already_claimed" });
+  }
+
+  if (slice.owner_role !== req.agent!.role) {
+    return res.status(409).json({ error: "wrong_role" });
+  }
+
+  slice.claimed_by = { role: req.agent!.role, id: req.agent!.id };
+  slice.claimed_at = new Date().toISOString();
+
+  await saveSlice(slice);
+  return res.status(200).json(slice);
+});
+
+router.post("/v1/slices/:slice_id/release", async (req, res) => {
+  const parsedBody = emptyBodySchema.safeParse(req.body ?? {});
+  if (!parsedBody.success) {
+    return res.status(400).json({ error: "invalid_body" });
+  }
+
+  const sliceId = String(req.params.slice_id || "").trim();
+  const slice = sliceId ? await getSlice(sliceId) : null;
+  if (!slice) {
+    return res.status(404).json({ error: "not_found" });
+  }
+
+  if (!slice.claimed_by) {
+    return res.status(409).json({ error: "not_claimed" });
+  }
+
+  if (slice.claimed_by.role !== req.agent!.role || slice.claimed_by.id !== req.agent!.id) {
+    return res.status(409).json({ error: "not_claimer" });
+  }
+
+  slice.claimed_by = null;
+  slice.claimed_at = null;
+
+  await saveSlice(slice);
   return res.status(200).json(slice);
 });
 

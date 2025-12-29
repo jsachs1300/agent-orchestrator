@@ -3,6 +3,7 @@ import { SliceV2 } from "../types/slices-v2.js";
 
 const SLICES_SET = "v2:slices";
 const SLICE_PREFIX = "v2:slice:";
+const SLICES_ORDER = "v2:slices:order";
 
 function sliceKey(sliceId: string) {
   return `${SLICE_PREFIX}${sliceId}`;
@@ -14,7 +15,7 @@ export async function clearSlicesStore() {
   const keys = ids.map((id) => sliceKey(id));
 
   const multi = redis.multi();
-  multi.del(SLICES_SET, ...keys);
+  multi.del(SLICES_SET, SLICES_ORDER, ...keys);
   await multi.exec();
 }
 
@@ -35,7 +36,10 @@ export async function getSlice(sliceId: string): Promise<SliceV2 | null> {
 export async function saveSlice(slice: SliceV2): Promise<void> {
   const redis = await getRedisClient();
   await redis.set(sliceKey(slice.slice_id), JSON.stringify(slice));
-  await redis.sAdd(SLICES_SET, slice.slice_id);
+  const added = await redis.sAdd(SLICES_SET, slice.slice_id);
+  if (added === 1) {
+    await redis.rPush(SLICES_ORDER, slice.slice_id);
+  }
 }
 
 export async function bulkCreateSlices(
@@ -80,8 +84,40 @@ export async function bulkCreateSlices(
   for (const item of items) {
     multi.set(sliceKey(item.slice_id), JSON.stringify(item));
     multi.sAdd(SLICES_SET, item.slice_id);
+    multi.rPush(SLICES_ORDER, item.slice_id);
   }
   await multi.exec();
 
   return { ok: true };
+}
+
+export async function listSlicesInOrder(): Promise<SliceV2[]> {
+  const redis = await getRedisClient();
+  const ids = await redis.lRange(SLICES_ORDER, 0, -1);
+  if (ids.length === 0) {
+    return [];
+  }
+
+  const multi = redis.multi();
+  for (const id of ids) {
+    multi.get(sliceKey(id));
+  }
+  const results = await multi.exec();
+  if (!results) {
+    return [];
+  }
+
+  const slices: SliceV2[] = [];
+  results.forEach((raw) => {
+    if (typeof raw !== "string") {
+      return;
+    }
+    try {
+      slices.push(JSON.parse(raw) as SliceV2);
+    } catch {
+      return;
+    }
+  });
+
+  return slices;
 }

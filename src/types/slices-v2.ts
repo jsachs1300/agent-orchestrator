@@ -36,6 +36,8 @@ export interface SliceV2 {
   title: string;
   owner_role: SliceOwnerRole;
   status: SliceStatus;
+  claimed_by: EvidenceAuthor | null;
+  claimed_at: string | null;
   depends_on?: string[];
   deliverables: SliceDeliverables;
 }
