@@ -3,6 +3,9 @@ import { z } from "zod";
 const nonEmptyString = z.string().trim().min(1);
 
 export const sliceOwnerRoleSchema = z.enum(["pm", "architect", "coder", "tester"]);
+export const nextSliceRoleSchema = z.enum(["architect", "coder", "tester"]);
+
+export const emptyBodySchema = z.object({}).strict();
 
 export const evidenceSchema = z
   .object({

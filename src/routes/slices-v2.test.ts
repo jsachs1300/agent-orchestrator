@@ -1,7 +1,7 @@
 import request from "supertest";
 import { beforeEach, describe, expect, it } from "vitest";
 import app from "../app.js";
-import { clearSlicesStore } from "../store/slices-store.js";
+import { clearSlicesStore, getSlice, saveSlice } from "../store/slices-store.js";
 
 const baseSlice = {
   slice_id: "SLICE-1",
@@ -33,6 +33,8 @@ const testerHeaders = {
 const defaultSliceResponse = {
   ...baseSlice,
   status: "not_started",
+  claimed_by: null,
+  claimed_at: null,
   deliverables: {
     architect: { design_spec: null, evidence: [] },
     coder: { implementation_notes: null, pr: null, evidence: [] },
@@ -496,6 +498,38 @@ describe("v2 slices endpoints", () => {
     expect(response.body).toEqual({ error: "invalid_body" });
   });
 
+  it("rejects status fields across patch endpoints", async () => {
+    await createSlice();
+
+    const responses = await Promise.all([
+      request(app)
+        .patch("/v1/slices/SLICE-1/implementation")
+        .set(coderHeaders)
+        .send({ implementation_notes: "Notes", status: "in_progress" }),
+      request(app)
+        .patch("/v1/slices/SLICE-1/tests")
+        .set(testerHeaders)
+        .send({ test_plan: "Plan", status: "in_progress" })
+    ]);
+
+    for (const response of responses) {
+      expect(response.status).toBe(400);
+      expect(response.body).toEqual({ error: "invalid_body" });
+    }
+  });
+
+  it("keeps slice status unchanged after successful patch", async () => {
+    await createSlice();
+
+    const response = await request(app)
+      .patch("/v1/slices/SLICE-1/design")
+      .set(architectHeaders)
+      .send({ design_spec: "Spec" });
+
+    expect(response.status).toBe(200);
+    expect(response.body.status).toBe("not_started");
+  });
+
   it("rejects empty strings in patch payloads", async () => {
     await createSlice();
 
@@ -560,5 +594,189 @@ describe("v2 slices endpoints", () => {
 
     expect(response.status).toBe(400);
     expect(response.body).toEqual({ error: "invalid_body" });
+  });
+
+  it("returns 401 when headers are missing on claim", async () => {
+    const response = await request(app).post("/v1/slices/SLICE-1/claim");
+
+    expect(response.status).toBe(401);
+    expect(response.body).toEqual({ error: "unauthorized" });
+  });
+
+  it("rejects claim and release bodies with fields", async () => {
+    await createSlice();
+
+    const claimResponse = await request(app)
+      .post("/v1/slices/SLICE-1/claim")
+      .set(architectHeaders)
+      .send({ extra: "nope" });
+
+    expect(claimResponse.status).toBe(400);
+    expect(claimResponse.body).toEqual({ error: "invalid_body" });
+
+    const releaseResponse = await request(app)
+      .post("/v1/slices/SLICE-1/release")
+      .set(architectHeaders)
+      .send({ extra: "nope" });
+
+    expect(releaseResponse.status).toBe(400);
+    expect(releaseResponse.body).toEqual({ error: "invalid_body" });
+  });
+
+  it("claims a slice and prevents duplicate claims", async () => {
+    await createSlice();
+
+    const claimResponse = await request(app)
+      .post("/v1/slices/SLICE-1/claim")
+      .set(architectHeaders);
+
+    expect(claimResponse.status).toBe(200);
+    expect(claimResponse.body.claimed_by).toEqual({ role: "architect", id: "agent-3" });
+    expect(claimResponse.body.claimed_at).toEqual(expect.any(String));
+
+    const secondClaim = await request(app)
+      .post("/v1/slices/SLICE-1/claim")
+      .set(testerHeaders);
+
+    expect(secondClaim.status).toBe(409);
+    expect(secondClaim.body).toEqual({ error: "already_claimed" });
+  });
+
+  it("rejects release when not claimed or by non-claimer", async () => {
+    await createSlice();
+
+    const notClaimedResponse = await request(app)
+      .post("/v1/slices/SLICE-1/release")
+      .set(architectHeaders);
+
+    expect(notClaimedResponse.status).toBe(409);
+    expect(notClaimedResponse.body).toEqual({ error: "not_claimed" });
+
+    await request(app).post("/v1/slices/SLICE-1/claim").set(architectHeaders);
+
+    const wrongClaimerResponse = await request(app)
+      .post("/v1/slices/SLICE-1/release")
+      .set(testerHeaders);
+
+    expect(wrongClaimerResponse.status).toBe(409);
+    expect(wrongClaimerResponse.body).toEqual({ error: "not_claimer" });
+  });
+
+  it("releases a claimed slice", async () => {
+    await createSlice();
+
+    await request(app).post("/v1/slices/SLICE-1/claim").set(architectHeaders);
+
+    const releaseResponse = await request(app)
+      .post("/v1/slices/SLICE-1/release")
+      .set(architectHeaders);
+
+    expect(releaseResponse.status).toBe(200);
+    expect(releaseResponse.body.claimed_by).toBeNull();
+    expect(releaseResponse.body.claimed_at).toBeNull();
+  });
+
+  it("returns 400 for invalid next role", async () => {
+    const response = await request(app)
+      .get("/v1/slices/next")
+      .set(pmHeaders)
+      .query({ role: "pm" });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({ error: "invalid_role" });
+  });
+
+  it("returns first eligible slice by insertion order", async () => {
+    const slices = [
+      { ...baseSlice, slice_id: "SLICE-1", owner_role: "coder" },
+      { ...baseSlice, slice_id: "SLICE-2", owner_role: "coder" }
+    ];
+
+    await request(app).post("/v1/slices/bulk").set(pmHeaders).send({ slices });
+
+    const response = await request(app)
+      .get("/v1/slices/next")
+      .set(coderHeaders)
+      .query({ role: "coder" });
+
+    expect(response.status).toBe(200);
+    expect(response.body.slice_id).toBe("SLICE-1");
+  });
+
+  it("respects dependencies when selecting next slice", async () => {
+    const slices = [
+      { ...baseSlice, slice_id: "SLICE-1", owner_role: "coder" },
+      { ...baseSlice, slice_id: "SLICE-2", owner_role: "coder", depends_on: ["SLICE-1"] }
+    ];
+
+    await request(app).post("/v1/slices/bulk").set(pmHeaders).send({ slices });
+
+    const firstResponse = await request(app)
+      .get("/v1/slices/next")
+      .set(coderHeaders)
+      .query({ role: "coder" });
+
+    expect(firstResponse.status).toBe(200);
+    expect(firstResponse.body.slice_id).toBe("SLICE-1");
+
+    const slice = await getSlice("SLICE-1");
+    if (!slice) {
+      throw new Error("missing slice");
+    }
+    slice.status = "done";
+    await saveSlice(slice);
+
+    const secondResponse = await request(app)
+      .get("/v1/slices/next")
+      .set(coderHeaders)
+      .query({ role: "coder" });
+
+    expect(secondResponse.status).toBe(200);
+    expect(secondResponse.body.slice_id).toBe("SLICE-2");
+  });
+
+  it("skips claimed slices when selecting next", async () => {
+    const slices = [
+      { ...baseSlice, slice_id: "SLICE-1", owner_role: "coder" },
+      { ...baseSlice, slice_id: "SLICE-2", owner_role: "coder" }
+    ];
+
+    await request(app).post("/v1/slices/bulk").set(pmHeaders).send({ slices });
+    await request(app).post("/v1/slices/SLICE-1/claim").set(coderHeaders);
+
+    const response = await request(app)
+      .get("/v1/slices/next")
+      .set(coderHeaders)
+      .query({ role: "coder" });
+
+    expect(response.status).toBe(200);
+    expect(response.body.slice_id).toBe("SLICE-2");
+  });
+
+  it("returns 404 when no eligible slices exist", async () => {
+    const slices = [
+      { ...baseSlice, slice_id: "SLICE-1", owner_role: "coder" },
+      { ...baseSlice, slice_id: "SLICE-2", owner_role: "coder" }
+    ];
+
+    await request(app).post("/v1/slices/bulk").set(pmHeaders).send({ slices });
+
+    const firstSlice = await getSlice("SLICE-1");
+    const secondSlice = await getSlice("SLICE-2");
+    if (!firstSlice || !secondSlice) {
+      throw new Error("missing slices");
+    }
+    firstSlice.status = "done";
+    secondSlice.status = "done";
+    await saveSlice(firstSlice);
+    await saveSlice(secondSlice);
+
+    const response = await request(app)
+      .get("/v1/slices/next")
+      .set(coderHeaders)
+      .query({ role: "coder" });
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({ error: "not_found" });
   });
 });
