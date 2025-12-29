@@ -17,18 +17,15 @@ export interface EvidenceInput {
 }
 
 export interface SliceDeliverables {
-  architect: { design_spec: string | null; evidence: Evidence[] };
-  coder: { implementation_notes: string | null; pr: string | null; evidence: Evidence[] };
+  architect: { design_spec: string | null };
+  coder: { implementation_notes: string | null; pr: string | null };
   tester: {
     test_plan: string | null;
     test_results: { status: string; notes?: string } | null;
-    evidence: Evidence[];
   };
 }
 
-export interface Evidence extends EvidenceInput {
-  author: EvidenceAuthor;
-}
+export type Evidence = EvidenceInput;
 
 export interface SliceV2 {
   slice_id: string;
@@ -40,4 +37,5 @@ export interface SliceV2 {
   claimed_at: string | null;
   depends_on?: string[];
   deliverables: SliceDeliverables;
+  evidence: Evidence[];
 }

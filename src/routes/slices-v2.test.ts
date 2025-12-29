@@ -36,10 +36,11 @@ const defaultSliceResponse = {
   claimed_by: null,
   claimed_at: null,
   deliverables: {
-    architect: { design_spec: null, evidence: [] },
-    coder: { implementation_notes: null, pr: null, evidence: [] },
-    tester: { test_plan: null, test_results: null, evidence: [] }
-  }
+    architect: { design_spec: null },
+    coder: { implementation_notes: null, pr: null },
+    tester: { test_plan: null, test_results: null }
+  },
+  evidence: []
 };
 
 beforeEach(async () => {
@@ -434,7 +435,7 @@ describe("v2 slices endpoints", () => {
       });
 
     expect(firstResponse.status).toBe(200);
-    expect(firstResponse.body.deliverables.architect.evidence).toHaveLength(1);
+    expect(firstResponse.body.evidence).toHaveLength(1);
 
     const secondResponse = await request(app)
       .patch("/v1/slices/SLICE-1/design")
@@ -445,10 +446,10 @@ describe("v2 slices endpoints", () => {
       });
 
     expect(secondResponse.status).toBe(200);
-    expect(secondResponse.body.deliverables.architect.evidence).toHaveLength(2);
+    expect(secondResponse.body.evidence).toHaveLength(2);
   });
 
-  it("stores evidence only under the calling role", async () => {
+  it("stores evidence at the slice level", async () => {
     await createSlice();
 
     const response = await request(app)
@@ -460,12 +461,11 @@ describe("v2 slices endpoints", () => {
       });
 
     expect(response.status).toBe(200);
-    expect(response.body.deliverables.coder.evidence).toHaveLength(1);
-    expect(response.body.deliverables.architect.evidence).toHaveLength(0);
-    expect(response.body.deliverables.tester.evidence).toHaveLength(0);
+    expect(response.body.evidence).toHaveLength(1);
+    expect(response.body.evidence[0]).toMatchObject({ type: "pr", ref: "PR-123" });
   });
 
-  it("records evidence author info", async () => {
+  it("records evidence entries without author fields", async () => {
     await createSlice();
 
     const response = await request(app)
@@ -477,13 +477,13 @@ describe("v2 slices endpoints", () => {
       });
 
     expect(response.status).toBe(200);
-    expect(response.body.deliverables.tester.evidence).toHaveLength(1);
-    expect(response.body.deliverables.tester.evidence[0]).toMatchObject({
+    expect(response.body.evidence).toHaveLength(1);
+    expect(response.body.evidence[0]).toMatchObject({
       type: "test",
-      ref: "Suite",
-      author: { role: "tester", id: "agent-4" }
+      ref: "Suite"
     });
-    expect("result" in response.body.deliverables.tester.evidence[0]).toBe(false);
+    expect("author" in response.body.evidence[0]).toBe(false);
+    expect("result" in response.body.evidence[0]).toBe(false);
   });
 
   it("rejects status updates from patch requests", async () => {
