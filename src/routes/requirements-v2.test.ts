@@ -1,7 +1,8 @@
 import request from "supertest";
 import { beforeEach, describe, expect, it } from "vitest";
 import app from "../app.js";
-import { clearRequirementsStore } from "../store/requirements-store.js";
+import { clearRequirementsStore, getRequirement } from "../store/requirements-store.js";
+import { clearSlicesStore, getSlice, saveSlice } from "../store/slices-store.js";
 
 const baseRequirement = {
   req_id: "REQ-1",
@@ -24,6 +25,7 @@ const coderHeaders = {
 
 beforeEach(async () => {
   await clearRequirementsStore();
+  await clearSlicesStore();
 });
 
 describe("v2 requirements endpoints", () => {
@@ -200,5 +202,90 @@ describe("v2 requirements endpoints", () => {
 
     expect(response.status).toBe(404);
     expect(response.body).toEqual({ error: "requirement_not_found" });
+  });
+
+  it("keeps derived status when no slices exist", async () => {
+    await request(app)
+      .post("/v1/requirements/bulk")
+      .set(pmHeaders)
+      .send({ requirements: [baseRequirement] });
+
+    const response = await request(app)
+      .get("/v1/requirements/REQ-1")
+      .set(pmHeaders);
+
+    expect(response.status).toBe(200);
+    expect(response.body.status).toBe("derived");
+  });
+
+  it("derives status from slice states", async () => {
+    await request(app)
+      .post("/v1/requirements/bulk")
+      .set(pmHeaders)
+      .send({ requirements: [baseRequirement] });
+
+    await request(app)
+      .post("/v1/slices/bulk")
+      .set(pmHeaders)
+      .send({
+        slices: [
+          {
+            slice_id: "SLICE-1",
+            req_id: "REQ-1",
+            title: "Slice one",
+            owner_role: "architect"
+          },
+          {
+            slice_id: "SLICE-2",
+            req_id: "REQ-1",
+            title: "Slice two",
+            owner_role: "coder"
+          }
+        ]
+      });
+
+    let slice = await getSlice("SLICE-1");
+    if (!slice) {
+      throw new Error("missing slice");
+    }
+    slice.status = "blocked";
+    await saveSlice(slice);
+
+    let response = await request(app)
+      .get("/v1/requirements/REQ-1")
+      .set(pmHeaders);
+
+    expect(response.status).toBe(200);
+    expect(response.body.status).toBe("blocked");
+
+    slice = await getSlice("SLICE-1");
+    const sliceTwo = await getSlice("SLICE-2");
+    if (!slice || !sliceTwo) {
+      throw new Error("missing slice");
+    }
+    slice.status = "done";
+    sliceTwo.status = "done";
+    await saveSlice(slice);
+    await saveSlice(sliceTwo);
+
+    response = await request(app)
+      .get("/v1/requirements/REQ-1")
+      .set(pmHeaders);
+
+    expect(response.status).toBe(200);
+    expect(response.body.status).toBe("completed");
+
+    sliceTwo.status = "not_started";
+    await saveSlice(sliceTwo);
+
+    response = await request(app)
+      .get("/v1/requirements/REQ-1")
+      .set(pmHeaders);
+
+    expect(response.status).toBe(200);
+    expect(response.body.status).toBe("in_progress");
+
+    const stored = await getRequirement("REQ-1");
+    expect(stored?.status).toBe("derived");
   });
 });
