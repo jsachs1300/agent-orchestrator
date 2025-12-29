@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import { appendFile, mkdir, readFile } from "fs/promises";
 import requirementsV2Router from "./routes/requirements-v2.js";
+import slicesV2Router from "./routes/slices-v2.js";
 
 const app = express();
 const promptsDir = path.join(process.cwd(), "prompts");
@@ -70,6 +71,7 @@ app.get("/prompt/:name", async (req, res) => {
   }
 });
 app.use(requirementsV2Router);
+app.use(slicesV2Router);
 
 app.use((req, res) => {
   res.status(404).json({ error: "not_found" });
