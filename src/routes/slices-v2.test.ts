@@ -623,6 +623,17 @@ describe("v2 slices endpoints", () => {
     expect(releaseResponse.body).toEqual({ error: "invalid_body" });
   });
 
+  it("rejects claim when role does not match owner_role", async () => {
+    await createSlice();
+
+    const claimResponse = await request(app)
+      .post("/v1/slices/SLICE-1/claim")
+      .set(coderHeaders);
+
+    expect(claimResponse.status).toBe(409);
+    expect(claimResponse.body).toEqual({ error: "wrong_role" });
+  });
+
   it("claims a slice and prevents duplicate claims", async () => {
     await createSlice();
 

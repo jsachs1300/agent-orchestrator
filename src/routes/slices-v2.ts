@@ -122,6 +122,10 @@ router.post("/v1/slices/:slice_id/claim", async (req, res) => {
     return res.status(409).json({ error: "already_claimed" });
   }
 
+  if (slice.owner_role !== req.agent!.role) {
+    return res.status(409).json({ error: "wrong_role" });
+  }
+
   slice.claimed_by = { role: req.agent!.role, id: req.agent!.id };
   slice.claimed_at = new Date().toISOString();
 
